@@ -7,6 +7,12 @@
   personally identifying information when creating each post.
 </p>
 
+{# `data-json-enc-array-fields` is set per-kind by the toggle script below
+   (see `ARRAY_FIELDS_BY_KIND`); each kind only lists its own multi-selects
+   so the other kind's array fields don't leak into the JSON body (which
+   `extra="forbid"` would otherwise reject). #}
+{# Initial value matches the default-checked kind (`client_referral`); the
+   toggle script swaps it on kind change. #}
 <form
   hx-post="/posts"
   hx-ext="json-enc-arrays"
@@ -40,30 +46,9 @@
     {% include "posts/_client_referral_fields.html" %}
   </div>
 
-  <fieldset data-kind-fields="provider_availability" hidden>
-    <legend>Provider availability details</legend>
-    <label for="pa-specialty">Specialty:</label><br />
-    <input type="text" id="pa-specialty" name="specialty" required /><br />
-    <label for="pa-region">Region:</label><br />
-    <input type="text" id="pa-region" name="region" required /><br />
-    {# Radios send a string Pydantic coerces to bool — checkboxes can't
-       carry an explicit `false` value through the json-enc serialization. #}
-    <fieldset>
-      <legend>Accepting new clients?</legend>
-      <label>
-        <input
-          type="radio"
-          name="accepting_new_clients"
-          value="true"
-          checked />
-        Yes
-      </label>
-      <label>
-        <input type="radio" name="accepting_new_clients" value="false" />
-        No
-      </label>
-    </fieldset>
-  </fieldset>
+  <div data-kind-fields="provider_availability" hidden>
+    {% include "posts/_provider_availability_fields.html" %}
+  </div>
 
   <br />
   <input type="submit" value="Create post" />
@@ -71,8 +56,13 @@
 
 <script>
   (function () {
+    const ARRAY_FIELDS_BY_KIND = {
+      client_referral: 'desired_times services',
+      provider_availability: 'desired_times services settings',
+    };
     const radios = document.querySelectorAll('[data-kind-radio]');
     const clusters = document.querySelectorAll('[data-kind-fields]');
+    const form = document.querySelector('form[hx-post="/posts"]');
     function update() {
       const selected = document.querySelector(
         '[data-kind-radio]:checked'
@@ -85,6 +75,12 @@
           el.disabled = !matches;
         });
       });
+      // Swap json-enc-arrays' coerced-array allow-list to the selected kind's
+      // multi-selects only; the other kind's array fields would otherwise
+      // serialize as `[]` and trip the schema's per-kind extra="forbid".
+      if (form && kind && ARRAY_FIELDS_BY_KIND[kind] !== undefined) {
+        form.dataset.jsonEncArrayFields = ARRAY_FIELDS_BY_KIND[kind];
+      }
     }
     radios.forEach((r) => r.addEventListener('change', update));
     update();

@@ -86,6 +86,9 @@ CLIENT_AGE_GROUPS = (
 
 LANGUAGE_PREFERRED_OPTIONS = ("no", "yes")
 
+# Service taxonomy shared by both kinds: a `client_referral` lists the
+# services it's seeking; a `provider_availability` lists the services it
+# offers. Same set of labels in either direction.
 CLIENT_REFERRAL_SERVICES = (
     "evaluation",
     "medication_management",
@@ -98,6 +101,15 @@ INSURANCE_OPTIONS = (
     "in_network",
     "out_of_network",
     "in_and_out_of_network",
+)
+
+# Treatment-setting tokens for `provider_availability.settings` (multi-select).
+TREATMENT_SETTINGS = (
+    "outpatient",
+    "iop",
+    "crisis_care",
+    "php",
+    "residential",
 )
 
 # 7 days × 3 time-of-day slots = 21 valid `day_slot` strings. The form is a
@@ -224,7 +236,12 @@ class ClientReferral(Post):
 class ProviderAvailability(Post):
     """A provider listing their availability / open slots.
 
-    Carries general availability metadata only — no client info.
+    Carries general availability metadata only — no client info. Mirrors the
+    multi-section intake form (Provider Information, Location, Availability,
+    Featured Services, Insurance); the column groupings below match those
+    sections. Reuses the same allowed-value tuples as `ClientReferral`
+    wherever the form vocabulary overlaps (states, availability, age groups,
+    services, insurance, time slots).
     """
 
     __tablename__ = "provider_availabilities"
@@ -236,6 +253,71 @@ class ProviderAvailability(Post):
         primary_key=True,
         default=uuid.uuid4,
     )
-    specialty = Column(Text, nullable=False)
-    region = Column(Text, nullable=False)
-    accepting_new_clients = Column(Boolean, nullable=False)
+
+    # --- Section 1: Provider Information ---
+    practice_name = Column(Text, nullable=False)
+    available_providers = Column(Text, nullable=False)
+
+    # --- Section 2: Location ---
+    location_city = Column(Text, nullable=False)
+    location_state = Column(Text, nullable=False)
+    location_zip = Column(Text, nullable=False)
+
+    # --- Section 3: Availability ---
+    in_person_sessions = Column(Text, nullable=False)
+    virtual_sessions = Column(Text, nullable=False)
+    # JSON list of `<day>_<slot>` tokens drawn from `DESIRED_TIME_SLOTS`.
+    # Empty list is allowed (no slots ticked); membership / uniqueness are
+    # enforced at the schema layer.
+    desired_times = Column(JSON, nullable=False)
+
+    # --- Section 4: Featured Services ---
+    # JSON list of service tokens from `CLIENT_REFERRAL_SERVICES`. The form
+    # spec requires at least one — enforced at the schema layer.
+    services = Column(JSON, nullable=False)
+    # Optional free-text modality (e.g. "DBT", "EMDR").
+    treatment_modality = Column(Text, nullable=True)
+    # JSON list of treatment-setting tokens from `TREATMENT_SETTINGS`. The
+    # form spec requires at least one — enforced at the schema layer.
+    settings = Column(JSON, nullable=False)
+    client_focus = Column(Text, nullable=False)
+    age_group = Column(Text, nullable=False)
+    non_english_services = Column(Text, nullable=False)
+
+    # --- Section 5: Insurance ---
+    payment_situation = Column(Text, nullable=False)
+    sliding_scale = Column(Boolean, nullable=False)
+    cost = Column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "location_state IN ('{}')".format("','".join(US_STATES)),
+            name="provider_availabilities_location_state_check",
+        ),
+        CheckConstraint(
+            "in_person_sessions IN ('{}')".format(
+                "','".join(LOCATION_AVAILABILITY_OPTIONS)
+            ),
+            name="provider_availabilities_in_person_sessions_check",
+        ),
+        CheckConstraint(
+            "virtual_sessions IN ('{}')".format(
+                "','".join(LOCATION_AVAILABILITY_OPTIONS)
+            ),
+            name="provider_availabilities_virtual_sessions_check",
+        ),
+        CheckConstraint(
+            "age_group IN ('{}')".format("','".join(CLIENT_AGE_GROUPS)),
+            name="provider_availabilities_age_group_check",
+        ),
+        CheckConstraint(
+            "non_english_services IN ('{}')".format(
+                "','".join(LANGUAGE_PREFERRED_OPTIONS)
+            ),
+            name="provider_availabilities_non_english_services_check",
+        ),
+        CheckConstraint(
+            "payment_situation IN ('{}')".format("','".join(INSURANCE_OPTIONS)),
+            name="provider_availabilities_payment_situation_check",
+        ),
+    )

@@ -2,9 +2,10 @@
 
 `Post` is polymorphic on `kind`: `client_referral` (multi-section intake
 form: Client Location / Demographics / Description / Services / Insurance)
-and `provider_availability` (specialty/region/accepting_new_clients) each
-have their own child table (joined-table inheritance — see
-`src/models/post.py`). These tests confirm:
+and `provider_availability` (multi-section intake form: Provider Information
+/ Location / Availability / Featured Services / Insurance) each have their
+own child table (joined-table inheritance — see `src/models/post.py`).
+These tests confirm:
 
 - both kinds round-trip through POST/GET/PATCH/DELETE
 - the unified GET /posts timeline returns rows of every kind
@@ -31,6 +32,7 @@ pytestmark = pytest.mark.asyncio
 
 _DEFAULT_DESIRED_TIMES = ["monday_morning", "wednesday_evening"]
 _DEFAULT_SERVICES = ["psychotherapy", "case_management"]
+_DEFAULT_PA_SETTINGS = ["outpatient", "iop"]
 
 
 def _make_client_referral(
@@ -72,16 +74,46 @@ def _make_client_referral(
 def _make_provider_availability(
     owner: User,
     *,
-    specialty: str = "psychiatry",
-    region: str = "boston metro",
-    accepting_new_clients: bool = True,
+    practice_name: str = "Bedlam Clinic",
+    available_providers: str = "Dr. A, Dr. B",
+    location_city: str = "Northampton",
+    location_state: str = "MA",
+    location_zip: str = "01060",
+    in_person_sessions: str = "yes",
+    virtual_sessions: str = "please_contact",
+    desired_times: list[str] | None = None,
+    services: list[str] | None = None,
+    treatment_modality: str | None = "DBT",
+    settings: list[str] | None = None,
+    client_focus: str = "adults seeking trauma-informed care",
+    age_group: str = "adults_25_64",
+    non_english_services: str = "no",
+    payment_situation: str = "in_network",
+    sliding_scale: bool = True,
+    cost: str | None = "$150 per session",
 ) -> ProviderAvailability:
     return ProviderAvailability(
         kind="provider_availability",
         owner_id=owner.id,
-        specialty=specialty,
-        region=region,
-        accepting_new_clients=accepting_new_clients,
+        practice_name=practice_name,
+        available_providers=available_providers,
+        location_city=location_city,
+        location_state=location_state,
+        location_zip=location_zip,
+        in_person_sessions=in_person_sessions,
+        virtual_sessions=virtual_sessions,
+        desired_times=(
+            desired_times if desired_times is not None else list(_DEFAULT_DESIRED_TIMES)
+        ),
+        services=services if services is not None else list(_DEFAULT_SERVICES),
+        treatment_modality=treatment_modality,
+        settings=settings if settings is not None else list(_DEFAULT_PA_SETTINGS),
+        client_focus=client_focus,
+        age_group=age_group,
+        non_english_services=non_english_services,
+        payment_situation=payment_situation,
+        sliding_scale=sliding_scale,
+        cost=cost,
     )
 
 
@@ -103,9 +135,23 @@ _VALID_CLIENT_REFERRAL_PAYLOAD = {
 
 _VALID_PROVIDER_AVAILABILITY_PAYLOAD = {
     "kind": "provider_availability",
-    "specialty": "psychiatry",
-    "region": "boston metro",
-    "accepting_new_clients": True,
+    "practice_name": "Bedlam Clinic",
+    "available_providers": "Dr. A, Dr. B",
+    "location_city": "Northampton",
+    "location_state": "MA",
+    "location_zip": "01060",
+    "in_person_sessions": "yes",
+    "virtual_sessions": "please_contact",
+    "desired_times": list(_DEFAULT_DESIRED_TIMES),
+    "services": list(_DEFAULT_SERVICES),
+    "treatment_modality": "DBT",
+    "settings": list(_DEFAULT_PA_SETTINGS),
+    "client_focus": "adults seeking trauma-informed care",
+    "age_group": "adults_25_64",
+    "non_english_services": "no",
+    "payment_situation": "in_network",
+    "sliding_scale": True,
+    "cost": "$150 per session",
 }
 
 
@@ -146,9 +192,80 @@ def _client_referral_audit_snapshot(
         "services": services if services is not None else list(_DEFAULT_SERVICES),
         "services_psychotherapy_modality": services_psychotherapy_modality,
         "insurance": insurance,
-        "specialty": None,
-        "region": None,
-        "accepting_new_clients": None,
+        # provider_availability fields stay None on a client_referral snapshot.
+        "practice_name": None,
+        "available_providers": None,
+        "in_person_sessions": None,
+        "virtual_sessions": None,
+        "treatment_modality": None,
+        "settings": None,
+        "client_focus": None,
+        "age_group": None,
+        "non_english_services": None,
+        "payment_situation": None,
+        "sliding_scale": None,
+        "cost": None,
+    }
+
+
+def _provider_availability_audit_snapshot(
+    owner_id: uuid.UUID,
+    *,
+    practice_name: str = "Bedlam Clinic",
+    available_providers: str = "Dr. A, Dr. B",
+    location_city: str = "Northampton",
+    location_state: str = "MA",
+    location_zip: str = "01060",
+    in_person_sessions: str = "yes",
+    virtual_sessions: str = "please_contact",
+    desired_times: list[str] | None = None,
+    services: list[str] | None = None,
+    treatment_modality: str | None = "DBT",
+    settings: list[str] | None = None,
+    client_focus: str = "adults seeking trauma-informed care",
+    age_group: str = "adults_25_64",
+    non_english_services: str = "no",
+    payment_situation: str = "in_network",
+    sliding_scale: bool = True,
+    cost: str | None = "$150 per session",
+) -> dict:
+    """Build the expected `before`/`after` audit dict for a provider_availability.
+
+    Mirrors `PostAuditSnapshot`; client_referral-only fields stay None.
+    """
+    return {
+        "kind": "provider_availability",
+        "owner_id": str(owner_id),
+        # client_referral-only fields stay None on a provider_availability
+        # snapshot. Shared field names (location_city/state/zip,
+        # desired_times, services) appear on both kinds.
+        "location_in_person": None,
+        "location_virtual": None,
+        "client_dem_ages": None,
+        "language_preferred": None,
+        "description": None,
+        "services_psychotherapy_modality": None,
+        "insurance": None,
+        # provider_availability fields
+        "practice_name": practice_name,
+        "available_providers": available_providers,
+        "location_city": location_city,
+        "location_state": location_state,
+        "location_zip": location_zip,
+        "in_person_sessions": in_person_sessions,
+        "virtual_sessions": virtual_sessions,
+        "desired_times": (
+            desired_times if desired_times is not None else list(_DEFAULT_DESIRED_TIMES)
+        ),
+        "services": services if services is not None else list(_DEFAULT_SERVICES),
+        "treatment_modality": treatment_modality,
+        "settings": settings if settings is not None else list(_DEFAULT_PA_SETTINGS),
+        "client_focus": client_focus,
+        "age_group": age_group,
+        "non_english_services": non_english_services,
+        "payment_situation": payment_situation,
+        "sliding_scale": sliding_scale,
+        "cost": cost,
     }
 
 
@@ -285,9 +402,12 @@ async def test_detail_renders_provider_availability_fields(
     author = create_test_user(username=f"author-{uuid.uuid4()}")
     post = _make_provider_availability(
         author,
-        specialty="psychiatry",
-        region="boston metro",
-        accepting_new_clients=False,
+        practice_name="Bedlam Clinic",
+        location_city="Boston",
+        location_state="NY",
+        payment_situation="out_of_network",
+        sliding_scale=False,
+        settings=["residential"],
     )
     async with db_test_session_manager() as session:
         async with session.begin():
@@ -298,11 +418,21 @@ async def test_detail_renders_provider_availability_fields(
     assert response.status_code == 200
     tree = HTMLParser(response.text)
     assert "provider_availability" in response.text
-    assert tree.css_first(".post-specialty").text(strip=True) == "psychiatry"
-    assert tree.css_first(".post-region").text(strip=True) == "boston metro"
-    accepting = tree.css_first(".post-accepting-new-clients")
-    assert accepting.attributes.get("data-accepting-new-clients") == "false"
-    assert accepting.text(strip=True) == "no"
+    assert tree.css_first(".post-practice-name").text(strip=True) == "Bedlam Clinic"
+    assert tree.css_first(".post-location-city").text(strip=True) == "Boston"
+    assert tree.css_first(".post-location-state").text(strip=True) == "NY"
+
+    payment = tree.css_first(".post-payment-situation")
+    assert payment.attributes.get("data-payment-situation") == "out_of_network"
+
+    sliding = tree.css_first(".post-sliding-scale")
+    assert sliding.attributes.get("data-sliding-scale") == "false"
+    assert sliding.text(strip=True) == "no"
+
+    settings = {
+        node.attributes.get("data-setting") for node in tree.css(".post-settings li")
+    }
+    assert settings == {"residential"}
 
 
 async def test_get_post_detail_404(
@@ -403,9 +533,23 @@ async def test_create_provider_availability_happy_path(
         assert persisted is not None
         assert persisted.kind == "provider_availability"
         assert persisted.owner_id == logged_in_user.id
-        assert persisted.specialty == "psychiatry"
-        assert persisted.region == "boston metro"
-        assert persisted.accepting_new_clients is True
+        assert persisted.practice_name == "Bedlam Clinic"
+        assert persisted.available_providers == "Dr. A, Dr. B"
+        assert persisted.location_city == "Northampton"
+        assert persisted.location_state == "MA"
+        assert persisted.location_zip == "01060"
+        assert persisted.in_person_sessions == "yes"
+        assert persisted.virtual_sessions == "please_contact"
+        assert persisted.desired_times == _DEFAULT_DESIRED_TIMES
+        assert persisted.services == _DEFAULT_SERVICES
+        assert persisted.treatment_modality == "DBT"
+        assert persisted.settings == _DEFAULT_PA_SETTINGS
+        assert persisted.client_focus == "adults seeking trauma-informed care"
+        assert persisted.age_group == "adults_25_64"
+        assert persisted.non_english_services == "no"
+        assert persisted.payment_situation == "in_network"
+        assert persisted.sliding_scale is True
+        assert persisted.cost == "$150 per session"
 
 
 async def test_create_post_strips_whitespace(
@@ -648,9 +792,9 @@ async def test_owner_can_patch_provider_availability(
 ):
     post = _make_provider_availability(
         logged_in_user,
-        specialty="orig",
-        region="orig-region",
-        accepting_new_clients=True,
+        practice_name="orig",
+        location_city="orig-city",
+        sliding_scale=True,
     )
     async with db_test_session_manager() as session:
         async with session.begin():
@@ -660,8 +804,8 @@ async def test_owner_can_patch_provider_availability(
         f"/posts/{post.id}",
         json={
             "kind": "provider_availability",
-            "specialty": "S2",
-            "accepting_new_clients": False,
+            "practice_name": "P2",
+            "sliding_scale": False,
         },
     )
     assert response.status_code == 200
@@ -671,9 +815,9 @@ async def test_owner_can_patch_provider_availability(
             select(ProviderAvailability).filter(ProviderAvailability.id == post.id)
         )
         refreshed = result.scalars().first()
-        assert refreshed.specialty == "S2"
-        assert refreshed.region == "orig-region"  # untouched
-        assert refreshed.accepting_new_clients is False
+        assert refreshed.practice_name == "P2"
+        assert refreshed.location_city == "orig-city"  # untouched
+        assert refreshed.sliding_scale is False
 
 
 async def test_patch_rejects_owner_id_in_payload(
@@ -764,22 +908,52 @@ async def test_get_post_form_renders_kind_and_field_clusters(
     assert kinds_offered == {"client_referral", "provider_availability"}
 
     # client_referral cluster has all five sections.
-    assert tree.css_first('input[name="location_city"]') is not None
-    assert tree.css_first('select[name="location_state"]') is not None
-    assert tree.css_first('input[name="location_zip"]') is not None
-    assert tree.css_first('select[name="location_in_person"]') is not None
-    assert tree.css_first('select[name="location_virtual"]') is not None
+    cr_cluster = tree.css_first('[data-kind-fields="client_referral"]')
+    assert cr_cluster is not None
+    assert cr_cluster.css_first('input[name="location_city"]') is not None
+    assert cr_cluster.css_first('select[name="location_state"]') is not None
+    assert cr_cluster.css_first('input[name="location_zip"]') is not None
+    assert cr_cluster.css_first('select[name="location_in_person"]') is not None
+    assert cr_cluster.css_first('select[name="location_virtual"]') is not None
     # 21 desired_times checkboxes
-    desired = tree.css('input[type="checkbox"][name="desired_times"]')
-    assert len(desired) == 21
-    assert tree.css_first('select[name="client_dem_ages"]') is not None
-    assert tree.css_first('select[name="language_preferred"]') is not None
-    assert tree.css_first('textarea[name="description"]') is not None
+    cr_desired = cr_cluster.css('input[type="checkbox"][name="desired_times"]')
+    assert len(cr_desired) == 21
+    assert cr_cluster.css_first('select[name="client_dem_ages"]') is not None
+    assert cr_cluster.css_first('select[name="language_preferred"]') is not None
+    assert cr_cluster.css_first('textarea[name="description"]') is not None
     # 5 service checkboxes
-    services = tree.css('input[type="checkbox"][name="services"]')
-    assert len(services) == 5
-    assert tree.css_first('input[name="services_psychotherapy_modality"]') is not None
-    assert tree.css_first('select[name="insurance"]') is not None
+    cr_services = cr_cluster.css('input[type="checkbox"][name="services"]')
+    assert len(cr_services) == 5
+    assert (
+        cr_cluster.css_first('input[name="services_psychotherapy_modality"]')
+        is not None
+    )
+    assert cr_cluster.css_first('select[name="insurance"]') is not None
+
+    # provider_availability cluster has all five sections.
+    pa_cluster = tree.css_first('[data-kind-fields="provider_availability"]')
+    assert pa_cluster is not None
+    assert pa_cluster.css_first('input[name="practice_name"]') is not None
+    assert pa_cluster.css_first('input[name="available_providers"]') is not None
+    assert pa_cluster.css_first('input[name="location_city"]') is not None
+    assert pa_cluster.css_first('select[name="location_state"]') is not None
+    assert pa_cluster.css_first('input[name="location_zip"]') is not None
+    assert pa_cluster.css_first('select[name="in_person_sessions"]') is not None
+    assert pa_cluster.css_first('select[name="virtual_sessions"]') is not None
+    pa_desired = pa_cluster.css('input[type="checkbox"][name="desired_times"]')
+    assert len(pa_desired) == 21
+    pa_services = pa_cluster.css('input[type="checkbox"][name="services"]')
+    assert len(pa_services) == 5
+    pa_settings = pa_cluster.css('input[type="checkbox"][name="settings"]')
+    assert len(pa_settings) == 5
+    assert pa_cluster.css_first('input[name="treatment_modality"]') is not None
+    assert pa_cluster.css_first('textarea[name="client_focus"]') is not None
+    assert pa_cluster.css_first('select[name="age_group"]') is not None
+    assert pa_cluster.css_first('select[name="non_english_services"]') is not None
+    assert pa_cluster.css_first('select[name="payment_situation"]') is not None
+    sliding_radios = pa_cluster.css('input[type="radio"][name="sliding_scale"]')
+    assert {r.attributes.get("value") for r in sliding_radios} == {"true", "false"}
+    assert pa_cluster.css_first('input[name="cost"]') is not None
 
 
 async def test_get_post_form_unauthenticated_redirects(test_client: AsyncClient):
@@ -932,9 +1106,14 @@ async def test_owner_can_open_provider_availability_edit_form(
 ):
     post = _make_provider_availability(
         logged_in_user,
-        specialty="orig-specialty",
-        region="orig-region",
-        accepting_new_clients=False,
+        practice_name="orig-practice",
+        available_providers="orig-providers",
+        location_state="NY",
+        payment_situation="out_of_network",
+        sliding_scale=False,
+        settings=["residential"],
+        services=["evaluation"],
+        desired_times=["thursday_morning"],
     )
     async with db_test_session_manager() as session:
         async with session.begin():
@@ -946,20 +1125,51 @@ async def test_owner_can_open_provider_availability_edit_form(
     form = tree.css_first("form")
     assert form is not None
     assert form.attributes.get("hx-patch") == f"/posts/{post.id}"
+    assert form.attributes.get("hx-ext") == "json-enc-arrays"
+    assert (
+        form.attributes.get("data-json-enc-array-fields")
+        == "desired_times services settings"
+    )
 
     discriminator = tree.css_first('input[type="hidden"][name="kind"]')
     assert discriminator.attributes.get("value") == "provider_availability"
-    assert (
-        tree.css_first('input[name="specialty"]').attributes.get("value")
-        == "orig-specialty"
+
+    practice = tree.css_first('input[name="practice_name"]')
+    assert practice.attributes.get("value") == "orig-practice"
+    providers = tree.css_first('input[name="available_providers"]')
+    assert providers.attributes.get("value") == "orig-providers"
+
+    state = tree.css_first('select[name="location_state"] option[selected]')
+    assert state.attributes.get("value") == "NY"
+
+    payment = tree.css_first('select[name="payment_situation"] option[selected]')
+    assert payment.attributes.get("value") == "out_of_network"
+
+    sliding_no = tree.css_first(
+        'input[type="radio"][name="sliding_scale"][value="false"][checked]'
     )
-    assert (
-        tree.css_first('input[name="region"]').attributes.get("value") == "orig-region"
-    )
-    accepting_no = tree.css_first(
-        'input[type="radio"][name="accepting_new_clients"][value="false"][checked]'
-    )
-    assert accepting_no is not None
+    assert sliding_no is not None
+
+    checked_settings = {
+        node.attributes.get("value")
+        for node in tree.css('input[type="checkbox"][name="settings"]')
+        if "checked" in node.attributes
+    }
+    assert checked_settings == {"residential"}
+
+    checked_services = {
+        node.attributes.get("value")
+        for node in tree.css('input[type="checkbox"][name="services"]')
+        if "checked" in node.attributes
+    }
+    assert checked_services == {"evaluation"}
+
+    checked_times = {
+        node.attributes.get("value")
+        for node in tree.css('input[type="checkbox"][name="desired_times"]')
+        if "checked" in node.attributes
+    }
+    assert checked_times == {"thursday_morning"}
 
 
 async def test_edit_form_unauthenticated_redirects(test_client: AsyncClient):
@@ -1094,28 +1304,7 @@ async def test_create_provider_availability_audit_includes_kind_fields(
         repo = AuditRepository(session)
         rows = await repo.list_for_resource(resource_type="post", resource_id=new_id)
         assert len(rows) == 1
-        snapshot = rows[0].after
-        assert snapshot["kind"] == "provider_availability"
-        assert snapshot["owner_id"] == str(logged_in_user.id)
-        assert snapshot["specialty"] == "psychiatry"
-        assert snapshot["region"] == "boston metro"
-        assert snapshot["accepting_new_clients"] is True
-        # client_referral fields stay None on a provider_availability snapshot.
-        for field in (
-            "location_city",
-            "location_state",
-            "location_zip",
-            "location_in_person",
-            "location_virtual",
-            "desired_times",
-            "client_dem_ages",
-            "language_preferred",
-            "description",
-            "services",
-            "services_psychotherapy_modality",
-            "insurance",
-        ):
-            assert snapshot[field] is None
+        assert rows[0].after == _provider_availability_audit_snapshot(logged_in_user.id)
 
 
 async def test_patch_writes_audit_row_with_before_and_after(

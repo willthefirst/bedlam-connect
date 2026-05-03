@@ -90,26 +90,22 @@ def _setup_users_admin_actions_stub(app: FastAPI) -> None:
 
 
 def _setup_posts_form_stub(app: FastAPI) -> None:
-    """Mount stub pages that render the real `posts/new.html` and
-    `posts/edit_client_referral.html` templates. The contract surface is the
-    forms' HTMX-decorated submissions; the create POST and edit PATCH are
-    intercepted by Playwright before they leave the browser, so no database
-    is needed.
+    """Mount stub pages that render the real post form templates. The
+    contract surface is the forms' HTMX-decorated submissions; the create
+    POST and edit PATCH are intercepted by Playwright before they leave the
+    browser, so no database is needed.
+
+    The edit-form stub key is the path's query string `?kind=...` — keeping
+    a single edit route avoids two stub UUIDs while letting each per-kind
+    edit pact pick the template it needs.
     """
 
     class _StubPost:
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
 
-    @app.get("/posts/form")
-    async def posts_form_stub_page(request: Request):
-        return APIResponse.html_response(
-            template_name="posts/new.html", context={}, request=request
-        )
-
-    @app.get("/posts/{post_id}/form")
-    async def posts_edit_form_stub_page(request: Request, post_id: uuid.UUID):
-        post = _StubPost(
+    def _client_referral_stub(post_id: uuid.UUID) -> _StubPost:
+        return _StubPost(
             id=post_id,
             kind="client_referral",
             location_city="Northampton",
@@ -125,8 +121,49 @@ def _setup_posts_form_stub(app: FastAPI) -> None:
             services_psychotherapy_modality="DBT",
             insurance="in_network",
         )
+
+    def _provider_availability_stub(post_id: uuid.UUID) -> _StubPost:
+        return _StubPost(
+            id=post_id,
+            kind="provider_availability",
+            practice_name="Bedlam Clinic",
+            available_providers="Dr. A, Dr. B",
+            location_city="Northampton",
+            location_state="MA",
+            location_zip="01060",
+            in_person_sessions="yes",
+            virtual_sessions="please_contact",
+            desired_times=["monday_morning", "wednesday_evening"],
+            services=["psychotherapy", "evaluation"],
+            treatment_modality="DBT",
+            settings=["outpatient", "iop"],
+            client_focus="adults seeking trauma-informed care",
+            age_group="adults_25_64",
+            non_english_services="no",
+            payment_situation="in_network",
+            sliding_scale=True,
+            cost="$150 per session",
+        )
+
+    @app.get("/posts/form")
+    async def posts_form_stub_page(request: Request):
         return APIResponse.html_response(
-            template_name="posts/edit_client_referral.html",
+            template_name="posts/new.html", context={}, request=request
+        )
+
+    @app.get("/posts/{post_id}/form")
+    async def posts_edit_form_stub_page(request: Request, post_id: uuid.UUID):
+        # `?kind=provider_availability` → render the PA edit template; default
+        # to client_referral so existing pacts continue to work without change.
+        kind = request.query_params.get("kind", "client_referral")
+        if kind == "provider_availability":
+            post = _provider_availability_stub(post_id)
+            template = "posts/edit_provider_availability.html"
+        else:
+            post = _client_referral_stub(post_id)
+            template = "posts/edit_client_referral.html"
+        return APIResponse.html_response(
+            template_name=template,
             context={"post": post},
             request=request,
         )
