@@ -2,48 +2,21 @@
 {% block title %}Edit provider availability: {{ post.id }}{% endblock %}
 {% block content %}
 <h1>Edit provider availability</h1>
+<p class="hint">
+  Please be careful to preserve client confidentiality by not sharing any
+  personally identifying information when creating each post.
+</p>
 
-<form hx-patch="/posts/{{ post.id }}" hx-ext="json-enc">
+<form
+  hx-patch="/posts/{{ post.id }}"
+  hx-ext="json-enc-arrays"
+  data-json-enc-array-fields="desired_times services settings">
   {# Discriminator field — the schema's PATCH union dispatches on `kind`,
      and the handler also rejects a kind that doesn't match the persisted
      post's kind. Submitting the form means "edit this provider_availability". #}
   <input type="hidden" name="kind" value="provider_availability" />
 
-  <label for="pa-specialty">Specialty:</label><br />
-  <input
-    type="text"
-    id="pa-specialty"
-    name="specialty"
-    value="{{ post.specialty }}"
-    required /><br />
-
-  <label for="pa-region">Region:</label><br />
-  <input
-    type="text"
-    id="pa-region"
-    name="region"
-    value="{{ post.region }}"
-    required /><br />
-
-  <fieldset>
-    <legend>Accepting new clients?</legend>
-    <label>
-      <input
-        type="radio"
-        name="accepting_new_clients"
-        value="true"
-        {% if post.accepting_new_clients %}checked{% endif %} />
-      Yes
-    </label>
-    <label>
-      <input
-        type="radio"
-        name="accepting_new_clients"
-        value="false"
-        {% if not post.accepting_new_clients %}checked{% endif %} />
-      No
-    </label>
-  </fieldset>
+  {% include "posts/_provider_availability_fields.html" %}
 
   <br />
   <input type="submit" value="Save changes" />

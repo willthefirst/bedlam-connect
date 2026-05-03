@@ -16,13 +16,16 @@ post's identity via PATCH.
 
 `client_referral` mirrors the multi-section intake form (Client Location,
 Demographics, Description, Services, Insurance — see
-`templates/posts/new.html`). Per-section enums (`_State`,
+`templates/posts/new.html`). `provider_availability` mirrors its own
+multi-section form (Provider Information, Location, Availability,
+Featured Services, Insurance). Per-section enums (`_State`,
 `_Availability`, `_AgeGroup`, `_LanguagePreferred`, `_Service`,
-`_Insurance`, `_DesiredTimeSlot`) are spelled out as `Literal[...]`
-because Python doesn't permit `Literal[*tuple_var]` syntax. A
-guardrail test (`test_post.py::test_schema_literals_match_model_tuples`)
-keeps these in lock-step with the source-of-truth tuples in
-`src/models/post.py` (which feed the DB CHECK constraints).
+`_Insurance`, `_DesiredTimeSlot`, `_TreatmentSetting`) are spelled out as
+`Literal[...]` because Python doesn't permit `Literal[*tuple_var]`
+syntax. A guardrail test
+(`test_post.py::test_schema_literals_match_model_tuples`) keeps these in
+lock-step with the source-of-truth tuples in `src/models/post.py` (which
+feed the DB CHECK constraints).
 """
 
 import re
@@ -112,6 +115,14 @@ _Service = Literal[
 
 _Insurance = Literal["in_network", "out_of_network", "in_and_out_of_network"]
 
+_TreatmentSetting = Literal[
+    "outpatient",
+    "iop",
+    "crisis_care",
+    "php",
+    "residential",
+]
+
 _DesiredTimeSlot = Literal[
     "monday_morning",
     "monday_afternoon",
@@ -145,6 +156,7 @@ _SCHEMA_ENUM_LITERALS = {
     "LANGUAGE_PREFERRED_OPTIONS": get_args(_LanguagePreferred),
     "CLIENT_REFERRAL_SERVICES": get_args(_Service),
     "INSURANCE_OPTIONS": get_args(_Insurance),
+    "TREATMENT_SETTINGS": get_args(_TreatmentSetting),
     "DESIRED_TIME_SLOTS": get_args(_DesiredTimeSlot),
 }
 
@@ -187,6 +199,12 @@ def _validate_zip(v: str) -> str:
 def _validate_unique_list(values: list[str], field_name: str) -> list[str]:
     if len(set(values)) != len(values):
         raise ValueError(f"{field_name} must not contain duplicates")
+    return values
+
+
+def _validate_non_empty_list(values: list[str], field_name: str) -> list[str]:
+    if not values:
+        raise ValueError(f"{field_name} must not be empty")
     return values
 
 
@@ -270,15 +288,87 @@ class ClientReferralCreate(_PostCreateBase):
 
 
 class ProviderAvailabilityCreate(_PostCreateBase):
-    kind: Literal["provider_availability"]
-    specialty: str
-    region: str
-    accepting_new_clients: bool
+    """Create payload for a provider availability.
 
-    @field_validator("specialty", "region")
+    Mirrors the multi-section intake form (Provider Information / Location /
+    Availability / Featured Services / Insurance). All required fields per
+    the form spec are required here; the multi-select `services` and
+    `settings` must each have at least one selection. `desired_times`
+    accepts an empty list (no slots ticked is allowed).
+    """
+
+    kind: Literal["provider_availability"]
+
+    # Section 1: Provider Information
+    practice_name: str
+    available_providers: str
+
+    # Section 2: Location
+    location_city: str
+    location_state: _State
+    location_zip: str
+
+    # Section 3: Availability
+    in_person_sessions: _Availability
+    virtual_sessions: _Availability
+    desired_times: list[_DesiredTimeSlot] = Field(default_factory=list)
+
+    # Section 4: Featured Services
+    services: list[_Service]
+    treatment_modality: str | None = None
+    settings: list[_TreatmentSetting]
+    client_focus: str
+    age_group: _AgeGroup
+    non_english_services: _LanguagePreferred = "no"
+
+    # Section 5: Insurance
+    payment_situation: _Insurance
+    sliding_scale: bool
+    cost: str | None = None
+
+    @field_validator(
+        "practice_name",
+        "available_providers",
+        "location_city",
+        "client_focus",
+    )
     @classmethod
     def _strip(cls, v: str) -> str:
         return _strip_required(v)
+
+    @field_validator("location_zip")
+    @classmethod
+    def _strip_zip(cls, v: str) -> str:
+        return _validate_zip(v)
+
+    @field_validator("treatment_modality", "cost")
+    @classmethod
+    def _strip_optional_text(cls, v: str | None) -> str | None:
+        return _strip_optional(v)
+
+    @field_validator("desired_times", "services", "settings", mode="before")
+    @classmethod
+    def _coerce_lists(cls, v):
+        return _coerce_str_to_list(v)
+
+    @field_validator("desired_times")
+    @classmethod
+    def _unique_desired_times(cls, v: list[str]) -> list[str]:
+        return _validate_unique_list(v, "desired_times")
+
+    @field_validator("services")
+    @classmethod
+    def _services_non_empty_unique(cls, v: list[str]) -> list[str]:
+        return _validate_unique_list(
+            _validate_non_empty_list(v, "services"), "services"
+        )
+
+    @field_validator("settings")
+    @classmethod
+    def _settings_non_empty_unique(cls, v: list[str]) -> list[str]:
+        return _validate_unique_list(
+            _validate_non_empty_list(v, "settings"), "settings"
+        )
 
 
 PostCreate = Annotated[
@@ -394,31 +484,121 @@ class ClientReferralUpdate(_PostUpdateBase):
         return self
 
 
+_PROVIDER_AVAILABILITY_EDITABLE_FIELDS = (
+    "practice_name",
+    "available_providers",
+    "location_city",
+    "location_state",
+    "location_zip",
+    "in_person_sessions",
+    "virtual_sessions",
+    "desired_times",
+    "services",
+    "treatment_modality",
+    "settings",
+    "client_focus",
+    "age_group",
+    "non_english_services",
+    "payment_situation",
+    "sliding_scale",
+    "cost",
+)
+
+
 class ProviderAvailabilityUpdate(_PostUpdateBase):
     """Partial update for a provider_availability. All editable fields
     optional, but the schema rejects a no-op (no editable field set) at
     validation time."""
 
     kind: Literal["provider_availability"]
-    specialty: str | None = None
-    region: str | None = None
-    accepting_new_clients: bool | None = None
 
-    @field_validator("specialty", "region")
+    practice_name: str | None = None
+    available_providers: str | None = None
+
+    location_city: str | None = None
+    location_state: _State | None = None
+    location_zip: str | None = None
+
+    in_person_sessions: _Availability | None = None
+    virtual_sessions: _Availability | None = None
+    desired_times: list[_DesiredTimeSlot] | None = None
+
+    services: list[_Service] | None = None
+    treatment_modality: str | None = None
+    settings: list[_TreatmentSetting] | None = None
+    client_focus: str | None = None
+    age_group: _AgeGroup | None = None
+    non_english_services: _LanguagePreferred | None = None
+
+    payment_situation: _Insurance | None = None
+    sliding_scale: bool | None = None
+    cost: str | None = None
+
+    @field_validator(
+        "practice_name",
+        "available_providers",
+        "location_city",
+        "client_focus",
+    )
     @classmethod
     def _strip(cls, v: str | None) -> str | None:
         if v is None:
             return None
         return _strip_required(v)
 
+    @field_validator("location_zip")
+    @classmethod
+    def _strip_zip(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return _validate_zip(v)
+
+    @field_validator("treatment_modality", "cost")
+    @classmethod
+    def _strip_optional_text(cls, v: str | None) -> str | None:
+        return _strip_optional(v)
+
+    @field_validator("desired_times", "services", "settings", mode="before")
+    @classmethod
+    def _coerce_lists(cls, v):
+        if v is None:
+            return None
+        return _coerce_str_to_list(v)
+
+    @field_validator("desired_times")
+    @classmethod
+    def _unique_desired_times(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return _validate_unique_list(v, "desired_times")
+
+    @field_validator("services")
+    @classmethod
+    def _services_non_empty_unique(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return _validate_unique_list(
+            _validate_non_empty_list(v, "services"), "services"
+        )
+
+    @field_validator("settings")
+    @classmethod
+    def _settings_non_empty_unique(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return _validate_unique_list(
+            _validate_non_empty_list(v, "settings"), "settings"
+        )
+
     @model_validator(mode="after")
     def _at_least_one_field(self) -> "ProviderAvailabilityUpdate":
         if all(
             getattr(self, name) is None
-            for name in ("specialty", "region", "accepting_new_clients")
+            for name in _PROVIDER_AVAILABILITY_EDITABLE_FIELDS
         ):
             raise ValueError(
-                "at least one of specialty, region, accepting_new_clients must be provided"
+                "at least one editable field must be provided: "
+                + ", ".join(_PROVIDER_AVAILABILITY_EDITABLE_FIELDS)
             )
         return self
 
@@ -466,9 +646,28 @@ class ClientReferralRead(_PostReadBase):
 
 class ProviderAvailabilityRead(_PostReadBase):
     kind: Literal["provider_availability"]
-    specialty: str
-    region: str
-    accepting_new_clients: bool
+
+    practice_name: str
+    available_providers: str
+
+    location_city: str
+    location_state: _State
+    location_zip: str
+
+    in_person_sessions: _Availability
+    virtual_sessions: _Availability
+    desired_times: list[_DesiredTimeSlot]
+
+    services: list[_Service]
+    treatment_modality: str | None
+    settings: list[_TreatmentSetting]
+    client_focus: str
+    age_group: _AgeGroup
+    non_english_services: _LanguagePreferred
+
+    payment_situation: _Insurance
+    sliding_scale: bool
+    cost: str | None
 
 
 PostRead = Annotated[
@@ -515,10 +714,25 @@ class PostAuditSnapshot(BaseModel):
     # client_referral fields (Section 5: Insurance)
     insurance: str | None = None
 
-    # provider_availability fields
-    specialty: str | None = None
-    region: str | None = None
-    accepting_new_clients: bool | None = None
+    # provider_availability fields (Section 1: Provider Information)
+    practice_name: str | None = None
+    available_providers: str | None = None
+
+    # provider_availability fields (Section 3: Availability)
+    in_person_sessions: str | None = None
+    virtual_sessions: str | None = None
+
+    # provider_availability fields (Section 4: Featured Services)
+    treatment_modality: str | None = None
+    settings: list[str] | None = None
+    client_focus: str | None = None
+    age_group: str | None = None
+    non_english_services: str | None = None
+
+    # provider_availability fields (Section 5: Insurance)
+    payment_situation: str | None = None
+    sliding_scale: bool | None = None
+    cost: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

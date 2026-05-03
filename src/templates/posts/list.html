@@ -14,7 +14,7 @@
       {% if post.kind == "client_referral" %}
         {{ post.description }}
       {% elif post.kind == "provider_availability" %}
-        {{ post.specialty }}
+        {{ post.practice_name }}
       {% else %}
         {{ post.id }}
       {% endif %}

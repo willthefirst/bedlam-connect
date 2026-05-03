@@ -20,6 +20,7 @@ from src.models.post import (
     INSURANCE_OPTIONS,
     LANGUAGE_PREFERRED_OPTIONS,
     LOCATION_AVAILABILITY_OPTIONS,
+    TREATMENT_SETTINGS,
     US_STATES,
 )
 from src.schemas.post import (
@@ -55,6 +56,30 @@ _VALID_CLIENT_REFERRAL = {
 }
 
 
+# Minimal valid payload for `provider_availability` — every required form
+# field present, optional fields populated for round-trip coverage.
+_VALID_PROVIDER_AVAILABILITY = {
+    "kind": "provider_availability",
+    "practice_name": "Bedlam Clinic",
+    "available_providers": "Dr. A, Dr. B",
+    "location_city": "Northampton",
+    "location_state": "MA",
+    "location_zip": "01060",
+    "in_person_sessions": "yes",
+    "virtual_sessions": "please_contact",
+    "desired_times": ["monday_morning", "wednesday_evening"],
+    "services": ["psychotherapy", "evaluation"],
+    "treatment_modality": "DBT",
+    "settings": ["outpatient", "iop"],
+    "client_focus": "adults seeking trauma-informed care",
+    "age_group": "adults_25_64",
+    "non_english_services": "no",
+    "payment_situation": "in_network",
+    "sliding_scale": True,
+    "cost": "$150 per session",
+}
+
+
 # --- Schema/model enum guardrail -----------------------------------------
 
 
@@ -74,6 +99,7 @@ def test_schema_literals_match_model_tuples():
     )
     assert _SCHEMA_ENUM_LITERALS["CLIENT_REFERRAL_SERVICES"] == CLIENT_REFERRAL_SERVICES
     assert _SCHEMA_ENUM_LITERALS["INSURANCE_OPTIONS"] == INSURANCE_OPTIONS
+    assert _SCHEMA_ENUM_LITERALS["TREATMENT_SETTINGS"] == TREATMENT_SETTINGS
     assert _SCHEMA_ENUM_LITERALS["DESIRED_TIME_SLOTS"] == DESIRED_TIME_SLOTS
 
 
@@ -93,18 +119,25 @@ def test_post_create_dispatches_client_referral():
 
 
 def test_post_create_dispatches_provider_availability():
-    parsed = _post_create.validate_python(
-        {
-            "kind": "provider_availability",
-            "specialty": "psychiatry",
-            "region": "boston metro",
-            "accepting_new_clients": True,
-        }
-    )
+    parsed = _post_create.validate_python(_VALID_PROVIDER_AVAILABILITY)
     assert isinstance(parsed, ProviderAvailabilityCreate)
-    assert parsed.specialty == "psychiatry"
-    assert parsed.region == "boston metro"
-    assert parsed.accepting_new_clients is True
+    assert parsed.practice_name == "Bedlam Clinic"
+    assert parsed.available_providers == "Dr. A, Dr. B"
+    assert parsed.location_city == "Northampton"
+    assert parsed.location_state == "MA"
+    assert parsed.location_zip == "01060"
+    assert parsed.in_person_sessions == "yes"
+    assert parsed.virtual_sessions == "please_contact"
+    assert parsed.desired_times == ["monday_morning", "wednesday_evening"]
+    assert parsed.services == ["psychotherapy", "evaluation"]
+    assert parsed.treatment_modality == "DBT"
+    assert parsed.settings == ["outpatient", "iop"]
+    assert parsed.client_focus == "adults seeking trauma-informed care"
+    assert parsed.age_group == "adults_25_64"
+    assert parsed.non_english_services == "no"
+    assert parsed.payment_situation == "in_network"
+    assert parsed.sliding_scale is True
+    assert parsed.cost == "$150 per session"
 
 
 def test_post_create_rejects_missing_kind():
@@ -348,47 +381,118 @@ def test_client_referral_update_rejects_bad_enum():
         )
 
 
-# --- provider_availability create / update -------------------------------
+# --- provider_availability create per-section validation -----------------
 
 
-@pytest.mark.parametrize("missing", ["specialty", "region", "accepting_new_clients"])
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "practice_name",
+        "available_providers",
+        "location_city",
+        "location_state",
+        "location_zip",
+        "in_person_sessions",
+        "virtual_sessions",
+        "services",
+        "settings",
+        "client_focus",
+        "age_group",
+        "payment_situation",
+        "sliding_scale",
+    ],
+)
 def test_provider_availability_create_requires_field(missing):
-    payload = {
-        "kind": "provider_availability",
-        "specialty": "psych",
-        "region": "boston",
-        "accepting_new_clients": True,
-    }
+    payload = {**_VALID_PROVIDER_AVAILABILITY}
     payload.pop(missing)
     with pytest.raises(ValidationError):
         _post_create.validate_python(payload)
 
 
-@pytest.mark.parametrize("field", ["specialty", "region"])
-def test_provider_availability_create_rejects_whitespace(field):
-    payload = {
-        "kind": "provider_availability",
-        "specialty": "s",
-        "region": "r",
-        "accepting_new_clients": True,
-        field: "   ",
-    }
+def test_provider_availability_create_omitting_desired_times_defaults_to_empty():
+    """Form spec marks the 21-cell time grid optional — no slots ticked is
+    allowed and arrives as a missing key from json-enc-arrays' empty-array
+    branch only after we compose the payload, so the schema must default."""
+    payload = {**_VALID_PROVIDER_AVAILABILITY}
+    payload.pop("desired_times")
+    parsed = _post_create.validate_python(payload)
+    assert isinstance(parsed, ProviderAvailabilityCreate)
+    assert parsed.desired_times == []
+
+
+def test_provider_availability_create_omits_optional_fields():
+    """treatment_modality, cost, and non_english_services are optional."""
+    payload = {**_VALID_PROVIDER_AVAILABILITY}
+    payload.pop("treatment_modality")
+    payload.pop("cost")
+    payload.pop("non_english_services")
+    parsed = _post_create.validate_python(payload)
+    assert isinstance(parsed, ProviderAvailabilityCreate)
+    assert parsed.treatment_modality is None
+    assert parsed.cost is None
+    # non_english_services defaults to "no" when absent
+    assert parsed.non_english_services == "no"
+
+
+@pytest.mark.parametrize(
+    "field,bad_value",
+    [
+        ("location_state", "ZZ"),
+        ("in_person_sessions", "maybe"),
+        ("virtual_sessions", "maybe"),
+        ("age_group", "EVERYONE"),
+        ("non_english_services", "fr"),
+        ("payment_situation", "self_pay"),
+    ],
+)
+def test_provider_availability_create_rejects_bad_enum_values(field, bad_value):
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: bad_value}
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(payload)
+
+
+@pytest.mark.parametrize("bad_zip", ["1234", "123456", "abcde", "01060-1234", ""])
+def test_provider_availability_create_rejects_bad_zip(bad_zip):
+    payload = {**_VALID_PROVIDER_AVAILABILITY, "location_zip": bad_zip}
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(payload)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "practice_name",
+        "available_providers",
+        "location_city",
+        "client_focus",
+    ],
+)
+def test_provider_availability_create_rejects_whitespace_text(field):
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: "   "}
     with pytest.raises(ValidationError):
         _post_create.validate_python(payload)
 
 
 def test_provider_availability_create_strips_whitespace():
-    parsed = _post_create.validate_python(
-        {
-            "kind": "provider_availability",
-            "specialty": "  s  ",
-            "region": "  r  ",
-            "accepting_new_clients": True,
-        }
-    )
-    assert isinstance(parsed, ProviderAvailabilityCreate)
-    assert parsed.specialty == "s"
-    assert parsed.region == "r"
+    payload = {
+        **_VALID_PROVIDER_AVAILABILITY,
+        "practice_name": "  Bedlam Clinic  ",
+        "available_providers": "  Dr. A, Dr. B  ",
+        "location_city": "  Northampton  ",
+        "client_focus": "  helping adults  ",
+    }
+    parsed = _post_create.validate_python(payload)
+    assert parsed.practice_name == "Bedlam Clinic"
+    assert parsed.available_providers == "Dr. A, Dr. B"
+    assert parsed.location_city == "Northampton"
+    assert parsed.client_focus == "helping adults"
+
+
+@pytest.mark.parametrize("field", ["treatment_modality", "cost"])
+def test_provider_availability_create_optional_text_empty_becomes_none(field):
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: "   "}
+    parsed = _post_create.validate_python(payload)
+    assert getattr(parsed, field) is None
 
 
 @pytest.mark.parametrize(
@@ -400,35 +504,112 @@ def test_provider_availability_create_strips_whitespace():
         (False, False),
     ],
 )
-def test_provider_availability_create_coerces_accepting_bool(raw, expected):
+def test_provider_availability_create_coerces_sliding_scale_bool(raw, expected):
     """Form payloads carry strings; Pydantic coerces them to bool."""
-    parsed = _post_create.validate_python(
-        {
-            "kind": "provider_availability",
-            "specialty": "s",
-            "region": "r",
-            "accepting_new_clients": raw,
-        }
-    )
-    assert parsed.accepting_new_clients is expected
+    payload = {**_VALID_PROVIDER_AVAILABILITY, "sliding_scale": raw}
+    parsed = _post_create.validate_python(payload)
+    assert parsed.sliding_scale is expected
 
 
 @pytest.mark.parametrize(
-    "payload",
+    "field,raw,expected",
     [
-        {"kind": "provider_availability", "specialty": "new"},
-        {"kind": "provider_availability", "region": "new"},
-        {"kind": "provider_availability", "accepting_new_clients": False},
-        {
-            "kind": "provider_availability",
-            "specialty": "s",
-            "region": "r",
-            "accepting_new_clients": True,
-        },
+        ("desired_times", "monday_morning", ["monday_morning"]),
+        ("services", "psychotherapy", ["psychotherapy"]),
+        ("settings", "outpatient", ["outpatient"]),
     ],
 )
-def test_provider_availability_update_accepts_partial(payload):
-    parsed = _post_update.validate_python(payload)
+def test_provider_availability_create_coerces_single_string_to_list(
+    field, raw, expected
+):
+    """HTMX `json-enc` sends a bare string when only one checkbox is ticked.
+    The schema's BeforeValidator coerces it to a 1-element list."""
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: raw}
+    parsed = _post_create.validate_python(payload)
+    assert getattr(parsed, field) == expected
+
+
+@pytest.mark.parametrize(
+    "field,bad_value",
+    [
+        ("desired_times", ["monday_zenith"]),
+        ("services", ["telepathy"]),
+        ("settings", ["full_moon"]),
+    ],
+)
+def test_provider_availability_create_rejects_bad_multiselect_value(field, bad_value):
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: bad_value}
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(payload)
+
+
+@pytest.mark.parametrize(
+    "field,duplicated",
+    [
+        ("desired_times", ["monday_morning", "monday_morning"]),
+        ("services", ["psychotherapy", "psychotherapy"]),
+        ("settings", ["outpatient", "outpatient"]),
+    ],
+)
+def test_provider_availability_create_rejects_duplicate_multiselect(field, duplicated):
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: duplicated}
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(payload)
+
+
+@pytest.mark.parametrize("field", ["services", "settings"])
+def test_provider_availability_create_rejects_empty_required_multiselect(field):
+    """The form spec marks both services and settings as 'at least one
+    required'; the schema enforces a non-empty list."""
+    payload = {**_VALID_PROVIDER_AVAILABILITY, field: []}
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(payload)
+
+
+def test_provider_availability_create_rejects_extra_fields():
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(
+            {**_VALID_PROVIDER_AVAILABILITY, "specialty": "psychiatry"}
+        )
+
+
+def test_provider_availability_create_rejects_owner_id():
+    with pytest.raises(ValidationError):
+        _post_create.validate_python(
+            {**_VALID_PROVIDER_AVAILABILITY, "owner_id": str(uuid.uuid4())}
+        )
+
+
+# --- provider_availability update ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    "patch_fields",
+    [
+        {"practice_name": "new"},
+        {"available_providers": "new"},
+        {"location_city": "Boston"},
+        {"location_state": "NY"},
+        {"location_zip": "02108"},
+        {"in_person_sessions": "no"},
+        {"virtual_sessions": "yes"},
+        {"desired_times": ["sunday_evening"]},
+        {"services": ["evaluation"]},
+        {"treatment_modality": "EMDR"},
+        {"settings": ["residential"]},
+        {"client_focus": "young adults"},
+        {"age_group": "adolescents_14_18"},
+        {"non_english_services": "yes"},
+        {"payment_situation": "out_of_network"},
+        {"sliding_scale": False},
+        {"cost": "$200/session"},
+        {"practice_name": "p", "settings": ["php"], "sliding_scale": True},
+    ],
+)
+def test_provider_availability_update_accepts_partial(patch_fields):
+    parsed = _post_update.validate_python(
+        {"kind": "provider_availability", **patch_fields}
+    )
     assert isinstance(parsed, ProviderAvailabilityUpdate)
 
 
@@ -440,5 +621,53 @@ def test_provider_availability_update_requires_at_least_one_field():
 def test_provider_availability_update_rejects_extra_fields():
     with pytest.raises(ValidationError):
         _post_update.validate_python(
-            {"kind": "provider_availability", "specialty": "s", "evil": True}
+            {"kind": "provider_availability", "practice_name": "p", "evil": True}
         )
+
+
+def test_provider_availability_update_rejects_owner_id():
+    with pytest.raises(ValidationError):
+        _post_update.validate_python(
+            {
+                "kind": "provider_availability",
+                "practice_name": "p",
+                "owner_id": str(uuid.uuid4()),
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["practice_name", "available_providers", "location_city", "client_focus"],
+)
+def test_provider_availability_update_rejects_whitespace_text(field):
+    with pytest.raises(ValidationError):
+        _post_update.validate_python({"kind": "provider_availability", field: "   "})
+
+
+def test_provider_availability_update_rejects_bad_zip():
+    with pytest.raises(ValidationError):
+        _post_update.validate_python(
+            {"kind": "provider_availability", "location_zip": "12"}
+        )
+
+
+def test_provider_availability_update_rejects_bad_enum():
+    with pytest.raises(ValidationError):
+        _post_update.validate_python(
+            {"kind": "provider_availability", "payment_situation": "self_pay"}
+        )
+
+
+@pytest.mark.parametrize("field", ["services", "settings"])
+def test_provider_availability_update_rejects_empty_required_multiselect(field):
+    with pytest.raises(ValidationError):
+        _post_update.validate_python({"kind": "provider_availability", field: []})
+
+
+def test_provider_availability_update_coerces_single_string_to_list():
+    parsed = _post_update.validate_python(
+        {"kind": "provider_availability", "settings": "outpatient"}
+    )
+    assert isinstance(parsed, ProviderAvailabilityUpdate)
+    assert parsed.settings == ["outpatient"]

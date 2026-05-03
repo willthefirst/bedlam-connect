@@ -1,0 +1,267 @@
+{# Multi-section provider_availability form fields (Provider Information,
+   Location, Availability, Featured Services, Insurance — see the form spec
+   mirrored in `src/models/post.py` and `src/schemas/post.py`).
+
+   Required context:
+     post — optional. When provided, all inputs prefill from its attributes.
+            When None, fields render empty / unselected (create flow).
+
+   The submit button is rendered by the parent template; this partial only
+   renders the input clusters so new.html (kind selector wrapper) and
+   edit_provider_availability.html (hidden discriminator wrapper) can share
+   the field set without diverging on validation/value handling.
+
+   HTMX `json-enc-arrays` (see base.html) serializes repeated
+   `name="desired_times"`, `name="services"`, and `name="settings"`
+   checkboxes as JSON arrays even when 0 or 1 are ticked. The parent form
+   declares these in `data-json-enc-array-fields`. #}
+
+{% set states = [
+    "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI",
+    "ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN",
+    "MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH",
+    "OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA",
+    "WV","WI","WY",
+] %}
+{% set days = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] %}
+{% set time_slots = ["morning","afternoon","evening"] %}
+{% set age_groups = [
+    ("children_0_5", "Children (0 to 5)"),
+    ("children_6_10", "Children (6 to 10)"),
+    ("preteens_11_13", "Preteens (11 to 13)"),
+    ("adolescents_14_18", "Adolescents (14 to 18)"),
+    ("young_adults_19_24", "Young Adults (19 to 24)"),
+    ("adults_25_64", "Adults (25 to 64)"),
+    ("older_adults_65_plus", "Older Adults (65+)"),
+] %}
+{% set services_options = [
+    ("evaluation", "Evaluation"),
+    ("medication_management", "Medication Management"),
+    ("psychotherapy", "Psychotherapy"),
+    ("case_management", "Case Management"),
+    ("allied_health", "Allied Health Services (e.g., occupational therapy)"),
+] %}
+{% set settings_options = [
+    ("outpatient", "Outpatient"),
+    ("iop", "Intensive Outpatient (IOP)"),
+    ("crisis_care", "Crisis Care"),
+    ("php", "Partial Hospitalization Program (PHP)"),
+    ("residential", "Residential Treatment"),
+] %}
+{% set availability_options = [
+    ("yes", "Yes"),
+    ("no", "No"),
+    ("please_contact", "Please Contact"),
+] %}
+{% set insurance_options = [
+    ("in_network", "In Network"),
+    ("out_of_network", "Out of Network"),
+    ("in_and_out_of_network", "In and Out of Network"),
+] %}
+
+{% set selected_times = (post.desired_times if post else []) or [] %}
+{% set selected_services = (post.services if post else []) or [] %}
+{% set selected_settings = (post.settings if post else []) or [] %}
+
+<fieldset class="pa-section" data-section="provider-information">
+  <legend>Provider Information</legend>
+
+  <label for="pa-practice-name">Practice Name:</label><br /> {# title-case-ignore #}
+  <input
+    type="text"
+    id="pa-practice-name"
+    name="practice_name"
+    value="{{ post.practice_name if post else '' }}"
+    required /><br />
+
+  <label for="pa-available-providers">Available Providers:</label><br /> {# title-case-ignore #}
+  <input
+    type="text"
+    id="pa-available-providers"
+    name="available_providers"
+    value="{{ post.available_providers if post else '' }}"
+    required /><br />
+</fieldset>
+
+<fieldset class="pa-section" data-section="location">
+  <legend>Location</legend>
+
+  <label for="pa-location-city">City:</label><br />
+  <input
+    type="text"
+    id="pa-location-city"
+    name="location_city"
+    value="{{ post.location_city if post else '' }}"
+    required /><br />
+
+  <label for="pa-location-state">Location (State):</label><br /> {# title-case-ignore #}
+  <select id="pa-location-state" name="location_state" required>
+    <option value="" {% if not post %}selected{% endif %}>Select a state…</option>
+    {% for state in states %}
+    <option value="{{ state }}" {% if post and post.location_state == state %}selected{% endif %}>{{ state }}</option>
+    {% endfor %}
+  </select><br />
+
+  <label for="pa-location-zip">ZIP Code:</label><br /> {# title-case-ignore #}
+  <input
+    type="text"
+    id="pa-location-zip"
+    name="location_zip"
+    value="{{ post.location_zip if post else '' }}"
+    inputmode="numeric"
+    pattern="\d{5}"
+    maxlength="5"
+    required /><br />
+</fieldset>
+
+<fieldset class="pa-section" data-section="availability">
+  <legend>Availability</legend>
+
+  <label for="pa-in-person-sessions">In-Person Sessions:</label><br /> {# title-case-ignore #}
+  <select id="pa-in-person-sessions" name="in_person_sessions" required>
+    <option value="" {% if not post %}selected{% endif %}>Select…</option>
+    {% for value, label in availability_options %}
+    <option value="{{ value }}" {% if post and post.in_person_sessions == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select><br />
+
+  <label for="pa-virtual-sessions">Virtual Sessions:</label><br /> {# title-case-ignore #}
+  <select id="pa-virtual-sessions" name="virtual_sessions" required>
+    <option value="" {% if not post %}selected{% endif %}>Select…</option>
+    {% for value, label in availability_options %}
+    <option value="{{ value }}" {% if post and post.virtual_sessions == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select><br />
+
+  <fieldset class="pa-subsection" data-subsection="desired-times">
+    <legend>Desired Time</legend>
+    <table class="pa-time-grid">
+      <thead>
+        <tr>
+          <th></th>
+          {% for slot in time_slots %}
+          <th>{{ slot|capitalize }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for day in days %}
+        <tr>
+          <th>{{ day|capitalize }}</th>
+          {% for slot in time_slots %}
+          {% set token = day ~ "_" ~ slot %}
+          <td>
+            <label>
+              <input
+                type="checkbox"
+                name="desired_times"
+                value="{{ token }}"
+                {% if token in selected_times %}checked{% endif %} />
+              <span class="visually-hidden">{{ day|capitalize }} {{ slot }}</span>
+            </label>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </fieldset>
+</fieldset>
+
+<fieldset class="pa-section" data-section="featured-services">
+  <legend>Featured Services</legend>
+
+  <p>Services Offered (select at least one):</p>
+  {% for value, label in services_options %}
+  <label>
+    <input
+      type="checkbox"
+      name="services"
+      value="{{ value }}"
+      {% if value in selected_services %}checked{% endif %} />
+    {{ label }}
+  </label><br />
+  {% endfor %}
+
+  <label for="pa-treatment-modality">Treatment Modality (optional, e.g., DBT, EMDR):</label><br /> {# title-case-ignore #}
+  <input
+    type="text"
+    id="pa-treatment-modality"
+    name="treatment_modality"
+    value="{{ post.treatment_modality if post and post.treatment_modality else '' }}" /><br />
+
+  <p>Treatment Settings (select at least one):</p>
+  {% for value, label in settings_options %}
+  <label>
+    <input
+      type="checkbox"
+      name="settings"
+      value="{{ value }}"
+      {% if value in selected_settings %}checked{% endif %} />
+    {{ label }}
+  </label><br />
+  {% endfor %}
+
+  <label for="pa-client-focus">Client Focus (no PII):</label><br /> {# title-case-ignore #}
+  <textarea
+    id="pa-client-focus"
+    name="client_focus"
+    rows="5"
+    placeholder="Describe who would benefit most from these services (do not include identifying information)..."
+    required>{{ post.client_focus if post else '' }}</textarea><br />
+
+  <label for="pa-age-group">Age Group:</label><br /> {# title-case-ignore #}
+  <select id="pa-age-group" name="age_group" required>
+    <option value="" {% if not post %}selected{% endif %}>Select an age group…</option>
+    {% for value, label in age_groups %}
+    <option value="{{ value }}" {% if post and post.age_group == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select><br />
+
+  <label for="pa-non-english-services">Are services offered in a language other than English?</label><br /> {# title-case-ignore #}
+  <select id="pa-non-english-services" name="non_english_services">
+    <option value="no" {% if not post or post.non_english_services == "no" %}selected{% endif %}>No</option>
+    <option value="yes" {% if post and post.non_english_services == "yes" %}selected{% endif %}>Yes</option>
+  </select><br />
+</fieldset>
+
+<fieldset class="pa-section" data-section="insurance">
+  <legend>Insurance</legend>
+
+  <label for="pa-payment-situation">Payment Situation:</label><br /> {# title-case-ignore #}
+  <select id="pa-payment-situation" name="payment_situation" required>
+    <option value="" {% if not post %}selected{% endif %}>Select…</option>
+    {% for value, label in insurance_options %}
+    <option value="{{ value }}" {% if post and post.payment_situation == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select><br />
+
+  <fieldset class="pa-subsection" data-subsection="sliding-scale">
+    <legend>Sliding Scale Available?</legend>
+    {# Radios send a string Pydantic coerces to bool — checkboxes can't
+       carry an explicit `false` value through the json-enc serialization. #}
+    <label>
+      <input
+        type="radio"
+        name="sliding_scale"
+        value="true"
+        {% if post and post.sliding_scale %}checked{% endif %} />
+      Yes
+    </label>
+    <label>
+      <input
+        type="radio"
+        name="sliding_scale"
+        value="false"
+        {% if not post or not post.sliding_scale %}checked{% endif %} />
+      No
+    </label>
+  </fieldset>
+
+  <label for="pa-cost">Cost (optional):</label><br /> {# title-case-ignore #}
+  <input
+    type="text"
+    id="pa-cost"
+    name="cost"
+    value="{{ post.cost if post and post.cost else '' }}" /><br />
+</fieldset>

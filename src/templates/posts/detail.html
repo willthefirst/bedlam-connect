@@ -83,16 +83,105 @@
 </dl>
 {% elif post.kind == "provider_availability" %}
 <dl class="post-fields">
-  <dt>specialty</dt>
-  <dd class="post-specialty">{{ post.specialty }}</dd>
-  <dt>region</dt>
-  <dd class="post-region">{{ post.region }}</dd>
-  <dt>accepting new clients</dt>
+  <dt>practice name</dt>
+  <dd class="post-practice-name">{{ post.practice_name }}</dd>
+  <dt>available providers</dt>
+  <dd class="post-available-providers">{{ post.available_providers }}</dd>
+
+  <dt>city</dt>
+  <dd class="post-location-city">{{ post.location_city }}</dd>
+  <dt>state</dt>
+  <dd class="post-location-state">{{ post.location_state }}</dd>
+  <dt>zip</dt>
+  <dd class="post-location-zip">{{ post.location_zip }}</dd>
+
+  <dt>in-person sessions</dt>
   <dd
-    class="post-accepting-new-clients"
-    data-accepting-new-clients="{{ 'true' if post.accepting_new_clients else 'false' }}">
-    {{ 'yes' if post.accepting_new_clients else 'no' }}
+    class="post-in-person-sessions"
+    data-in-person-sessions="{{ post.in_person_sessions }}">
+    {{ post.in_person_sessions|replace('_', ' ') }}
   </dd>
+  <dt>virtual sessions</dt>
+  <dd
+    class="post-virtual-sessions"
+    data-virtual-sessions="{{ post.virtual_sessions }}">
+    {{ post.virtual_sessions|replace('_', ' ') }}
+  </dd>
+
+  <dt>desired times</dt>
+  <dd class="post-desired-times">
+    {% if post.desired_times %}
+    <ul>
+      {% for slot in post.desired_times %}
+      <li data-time-slot="{{ slot }}">{{ slot|replace('_', ' ') }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <em>none specified</em>
+    {% endif %}
+  </dd>
+
+  <dt>services</dt>
+  <dd class="post-services">
+    {% if post.services %}
+    <ul>
+      {% for svc in post.services %}
+      <li data-service="{{ svc }}">{{ svc|replace('_', ' ') }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <em>none specified</em>
+    {% endif %}
+  </dd>
+
+  {% if post.treatment_modality %}
+  <dt>treatment modality</dt>
+  <dd class="post-treatment-modality">{{ post.treatment_modality }}</dd>
+  {% endif %}
+
+  <dt>settings</dt>
+  <dd class="post-settings">
+    {% if post.settings %}
+    <ul>
+      {% for setting in post.settings %}
+      <li data-setting="{{ setting }}">{{ setting|replace('_', ' ') }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <em>none specified</em>
+    {% endif %}
+  </dd>
+
+  <dt>client focus</dt>
+  <dd class="post-client-focus">{{ post.client_focus }}</dd>
+
+  <dt>age group</dt>
+  <dd class="post-age-group" data-age-group="{{ post.age_group }}">
+    {{ post.age_group|replace('_', ' ') }}
+  </dd>
+  <dt>language other than english</dt>
+  <dd
+    class="post-non-english-services"
+    data-non-english-services="{{ post.non_english_services }}">
+    {{ post.non_english_services }}
+  </dd>
+
+  <dt>payment situation</dt>
+  <dd
+    class="post-payment-situation"
+    data-payment-situation="{{ post.payment_situation }}">
+    {{ post.payment_situation|replace('_', ' ') }}
+  </dd>
+  <dt>sliding scale</dt>
+  <dd
+    class="post-sliding-scale"
+    data-sliding-scale="{{ 'true' if post.sliding_scale else 'false' }}">
+    {{ 'yes' if post.sliding_scale else 'no' }}
+  </dd>
+  {% if post.cost %}
+  <dt>cost</dt>
+  <dd class="post-cost">{{ post.cost }}</dd>
+  {% endif %}
 </dl>
 {% endif %}
 
