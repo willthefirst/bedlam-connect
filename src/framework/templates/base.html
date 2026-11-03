@@ -166,8 +166,8 @@
        consistent between authenticated app pages and the public auth
        flow. Authed users get the redesigned nav (brand → posts, + Post,
        avatar menu); anonymous visitors get only the brand. The brand link
-       is the "home" affordance: authed viewers go to the referral board
-       (`/posts?kind=referral`), anonymous ones to `/`, which renders the
+       is the "home" affordance: authed viewers go to the posts board
+       (bare `/posts`), anonymous ones to `/`, which renders the
        public landing page for them — see `src/main.py:read_root`. #}
 {# Self-profile page. The nav lights up for any path under
        the self-alias URL. #}
