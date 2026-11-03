@@ -22,7 +22,10 @@ app = [
     "python-dotenv",
     "async-lru",
     "Jinja2",
-    "selectolax",
+    # <1: selectolax 1.0 removed the Modest backend (`selectolax.parser`)
+    # every test + `title_case_check.py` imports. CI resolves from this
+    # file via pip (not `uv.lock`), so unpinned it pulls 1.x.
+    "selectolax>=0.3,<1",
     "fastapi-users[sqlalchemy]",
     "aiosqlite",
     "pydantic-settings",

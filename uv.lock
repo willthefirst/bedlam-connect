@@ -335,7 +335,7 @@ requires-dist = [
     { name = "python-dotenv", marker = "extra == 'app'" },
     { name = "requests", marker = "extra == 'test'" },
     { name = "resend", marker = "extra == 'app'" },
-    { name = "selectolax", marker = "extra == 'app'" },
+    { name = "selectolax", marker = "extra == 'app'", specifier = ">=0.3,<1" },
     { name = "sentry-sdk", extras = ["fastapi"], marker = "extra == 'app'" },
     { name = "sqlalchemy", marker = "extra == 'app'" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'app'" },
