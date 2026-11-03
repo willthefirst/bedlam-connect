@@ -83,6 +83,12 @@ def build_datasette(db_path: str) -> Datasette:
         settings={
             "base_url": BASE_URL,
             "sql_time_limit_ms": _SQL_TIME_LIMIT_MS,
+            # Behind nginx the container sees plain-HTTP requests (uvicorn
+            # only trusts X-Forwarded-Proto from 127.0.0.1), so Datasette's
+            # absolute URLs — e.g. the dashboard charts' data URL — come out
+            # `http://` and the browser blocks them as mixed content on the
+            # HTTPS page. The deployment's public URL is the truth.
+            "force_https_urls": settings.APP_BASE_URL.startswith("https://"),
         },
     )
     # Fixed name (not the file stem) so `metadata.yaml` keys and URLs are
