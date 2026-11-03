@@ -47,7 +47,7 @@ async def test_send_password_reset_email_builds_absolute_url_with_token(monkeypa
     is passed verbatim — fastapi-users' reset router consumes it via
     the path param, not a query string."""
     monkeypatch.setattr(
-        "src.domain.logic.auth.emails.settings.APP_BASE_URL",
+        "src.framework.email.links.settings.APP_BASE_URL",
         "https://app.example.com",
     )
     send_email_mock = AsyncMock()
@@ -60,25 +60,6 @@ async def test_send_password_reset_email_builds_absolute_url_with_token(monkeypa
     expected_url = "https://app.example.com/auth/reset-password/my-token"
     assert expected_url in kwargs["text"]
     assert expected_url in kwargs["html"]
-
-
-@pytest.mark.asyncio
-async def test_send_password_reset_email_handles_base_url_trailing_slash(monkeypatch):
-    """`APP_BASE_URL` set in `.env` with a trailing slash must not
-    produce `//` in the link — the helper strips both edges."""
-    monkeypatch.setattr(
-        "src.domain.logic.auth.emails.settings.APP_BASE_URL",
-        "https://app.example.com/",
-    )
-    send_email_mock = AsyncMock()
-    monkeypatch.setattr("src.domain.logic.auth.emails.send_email", send_email_mock)
-
-    user = SimpleNamespace(email="alice@example.com", username="alice")
-    await send_password_reset_email(user, token="t")
-
-    kwargs = send_email_mock.call_args.kwargs
-    assert "https://app.example.com/auth/reset-password/t" in kwargs["text"]
-    assert "//auth/reset-password" not in kwargs["text"]
 
 
 @pytest.mark.asyncio
@@ -123,7 +104,7 @@ async def test_send_verification_email_builds_query_param_link(monkeypatch):
     `auth_pages.py:get_verify_page` reads the token via
     `request.query_params`."""
     monkeypatch.setattr(
-        "src.domain.logic.auth.emails.settings.APP_BASE_URL",
+        "src.framework.email.links.settings.APP_BASE_URL",
         "https://app.example.com",
     )
     send_email_mock = AsyncMock()

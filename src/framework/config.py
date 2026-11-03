@@ -1,8 +1,7 @@
-import os
 from pathlib import Path
-from typing import Any, get_type_hints
+from urllib.parse import urlparse
 
-from pydantic import ConfigDict, ValidationError
+from pydantic import ConfigDict, ValidationError, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -26,7 +25,10 @@ class Settings(BaseSettings):
     # by every backend (including `console`, which prints it). The
     # `APP_BASE_URL` is needed to build absolute links in emails
     # (verify, password reset) — relative paths don't work outside the
-    # request scope.
+    # request scope. It must carry its scheme (`https://…`):
+    # `_validate_app_base_url` refuses to boot otherwise, because a
+    # scheme-less value renders as a relative `href` that some clients
+    # silently repair and others resolve against their own domain.
     EMAIL_BACKEND: str = "console"
     EMAIL_FROM: str = "no-reply@bedlamconnect.com"
     APP_BASE_URL: str = "http://localhost:8000"
@@ -69,15 +71,22 @@ class Settings(BaseSettings):
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
+    @field_validator("APP_BASE_URL")
     @classmethod
-    def get_required_fields(cls) -> list[str]:
-        """Get all required fields (those without default values)."""
-        hints = get_type_hints(cls)
-        return [
-            field
-            for field, _ in hints.items()
-            if not hasattr(cls, field) or getattr(cls, field) is Any
-        ]
+    def _validate_app_base_url(cls, value: str) -> str:
+        """Require an absolute `http(s)://host` URL and strip any trailing
+        slash, so link builders can join paths with a single `/`.
+
+        Failing here (not at send time) is what turns a bad deploy
+        secret into a failed `/health` check and a rollback, instead of
+        a stream of broken emails."""
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError(
+                f"APP_BASE_URL must be an absolute http(s) URL, got {value!r}"
+                f" — did you mean 'https://{value.lstrip('/')}'?"
+            )
+        return value.rstrip("/")
 
     def __init__(self, **kwargs):
         try:
@@ -86,13 +95,13 @@ class Settings(BaseSettings):
         except ValidationError as e:
             # If validation fails, provide helpful error message
             env_file = Path(".env")
-            required_fields = self.get_required_fields()
 
-            # Check which required fields are missing
-            missing_fields = []
-            for field in required_fields:
-                if not os.getenv(field):
-                    missing_fields.append(field)
+            # Read missing fields off the error itself — probing
+            # `os.getenv` would misreport fields supplied via `.env` or
+            # kwargs and mask the real error (e.g. a bad APP_BASE_URL).
+            missing_fields = [
+                str(err["loc"][0]) for err in e.errors() if err["type"] == "missing"
+            ]
 
             if missing_fields:
                 fields_str = "\n".join(f"- {field}" for field in missing_fields)

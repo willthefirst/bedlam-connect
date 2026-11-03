@@ -17,19 +17,8 @@ from __future__ import annotations
 
 from src.domain.logic.posts.view import post_feed_headline
 from src.domain.models import Post, User
-from src.framework.config import settings
-from src.framework.email import send_email
+from src.framework.email import absolute_url, send_email
 from src.framework.rendering.templating import templates
-
-
-def _absolute_url(path: str) -> str:
-    """Join `APP_BASE_URL` with a path. Mirrors
-    `domain/logic/auth/emails._absolute_url` — kept local rather than
-    extracted because the auth helper is private and a second copy is
-    cheaper than promoting one helper to a shared module just for two
-    callers."""
-    base = settings.APP_BASE_URL.rstrip("/")
-    return f"{base}/{path.lstrip('/')}"
 
 
 def _render(template_name: str, **context: object) -> str:
@@ -52,7 +41,7 @@ async def send_post_message_email(*, post: Post, sender: User, body: str) -> Non
     hyperlinked subject line so the poster can re-anchor on what's being
     asked about in one click.
     """
-    post_url = _absolute_url(f"/posts/{post.id}")
+    post_url = absolute_url(f"/posts/{post.id}")
     context = {
         "sender_username": sender.username,
         "post_headline": post_feed_headline(post),
