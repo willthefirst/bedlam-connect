@@ -71,7 +71,8 @@ async def send_post_message(
     Event-shaped (RESOURCE_GRAMMAR § "POST /<r>/{id}/<event>") — fires
     an outbound transactional email to the post owner with the
     sender's email on `Reply-To`, and records the sender's
-    `PostConnection` edge on their first message about the post (#775).
+    `PostConnection` edge on their first message about the post (#775)
+    plus a `send_post_message` audit event on every send.
     The message body itself is never persisted: the conversation
     continues off-platform in the poster's own mail client, so any body
     history we'd store would only diverge from what actually happened.
