@@ -464,11 +464,14 @@ async def handle_send_post_message(
 
     The first message a user sends about a post creates their
     `PostConnection` edge (audited as `add_post_connection`); later messages
-    reuse the existing edge and write no audit row. The body is never
-    persisted — it lives only in the outbound email.
+    reuse the existing edge. Every send — first or repeat — also writes a
+    `send_post_message` event row against the connection, so the audit
+    log is the per-message history (who, which post, when). The body is
+    never persisted — it lives only in the outbound email.
 
     The commit runs after the email sends, so a failed send leaves no
-    edge behind: a connection means a message actually went out.
+    edge and no event row behind: each row means a message actually
+    went out.
 
     403 if the sender doesn't clear `can_act_as_provider` or owns the
     post; 404 if the post does not exist.
@@ -500,6 +503,15 @@ async def handle_send_post_message(
         )
 
     await send_post_message_email(post=post, sender=requesting_user, body=body)
+    # Event row: nothing is mutated, so no before/after snapshot — the
+    # actor + connection id + timestamp are the whole record.
+    await record_audit(
+        audit_repo,
+        actor_id=requesting_user.id,
+        resource_type="post_connection",
+        resource_id=connection.id,
+        action=AuditAction.SEND_POST_MESSAGE,
+    )
     await connection_repo.session.commit()
     logger.info(f"Handler: user {requesting_user.id} messaged post {post_id}")
     return SentPostMessage(

@@ -28,7 +28,9 @@ _MUTATION_NAME = re.compile(
 # Event actions: nothing is mutated, so there is no `<VERB>_<RESOURCE>`
 # shape to follow. Keep tight — an action that creates or changes a row
 # belongs in one of the verb families above, not here.
-_EVENT_ACTIONS: frozenset[str] = frozenset({"REGISTER", "JOB_RUN_STARTED"})
+_EVENT_ACTIONS: frozenset[str] = frozenset(
+    {"REGISTER", "JOB_RUN_STARTED", "SEND_POST_MESSAGE"}
+)
 
 # Bespoke members not modeled by any spec.
 #
@@ -52,6 +54,10 @@ _EVENT_ACTIONS: frozenset[str] = frozenset({"REGISTER", "JOB_RUN_STARTED"})
 #   a post creates their `PostConnection` edge. The edge has no routes of
 #   its own (it rides the `/posts/{id}/message` event) and no remove verb,
 #   so there is no EntitySpec / `EdgeAudit` to derive it from.
+# - `SEND_POST_MESSAGE` is the per-send event row the same handler writes
+#   on every message (first or repeat), against the sender's
+#   `PostConnection`. An event, not a mutation — nothing changes — so it
+#   sits in `_EVENT_ACTIONS` too.
 #
 # Keep tight: add an entry only when adding a corresponding
 # `record_audit(action=...)` callsite or `AuditedResource` declaration.
@@ -63,6 +69,7 @@ _BESPOKE: frozenset[str] = frozenset(
         "UPDATE_VERIFICATION",
         "DELETE_VERIFICATION",
         "ADD_POST_CONNECTION",
+        "SEND_POST_MESSAGE",
     }
 )
 

@@ -75,6 +75,10 @@ class AuditAction(str, Enum):
     # only (no disconnect), so there is no matching remove action. See
     # `_BESPOKE` in `test_audit_action_drift.py`.
     ADD_POST_CONNECTION = "add_post_connection"
+    # Event (no mutation): one row per `POST /posts/{id}/message` that
+    # actually sent, against the sender's `PostConnection`. No snapshot —
+    # the message body is never persisted.
+    SEND_POST_MESSAGE = "send_post_message"
     # `Verification` is append-only — only `CREATE_VERIFICATION` ever
     # fires. The triple is here (not just CREATE) because the
     # verification logic cluster declares a single `AuditedResource`
