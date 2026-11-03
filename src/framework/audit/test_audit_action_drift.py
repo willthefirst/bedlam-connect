@@ -1,4 +1,5 @@
-"""Drift guard: every `AuditAction` member is justified by a spec.
+"""Drift guard: every `AuditAction` member is justified by a spec and
+follows the naming grammar in `README.md` § "`AuditAction` naming".
 
 The CRUD / edge / state-axis partition is derived by iterating
 :data:`src.domain.specs.ALL_ENTITY_SPECS` — no hand-listed tuple per
@@ -8,8 +9,26 @@ tuple and the matching ``CREATE_<STEM>`` / ``UPDATE_<STEM>`` /
 flags any missing piece.
 """
 
+import re
+
+import pytest
+
 from src.domain.specs import ALL_ENTITY_SPECS
 from src.framework.audit.core import AuditAction
+
+# Verb prefixes allowed for resource-mutating actions, per audit shape.
+# See README.md § "`AuditAction` naming" for the table this mirrors.
+_CRUD_VERBS = ("CREATE", "UPDATE", "DELETE")
+_EDGE_VERBS = {"add": "ADD", "remove": "REMOVE"}
+_STATE_AXIS_VERB = "SET"
+_MUTATION_NAME = re.compile(
+    rf"^({'|'.join((*_CRUD_VERBS, *_EDGE_VERBS.values(), _STATE_AXIS_VERB))})_[A-Z][A-Z0-9_]*$"
+)
+
+# Event actions: nothing is mutated, so there is no `<VERB>_<RESOURCE>`
+# shape to follow. Keep tight — an action that creates or changes a row
+# belongs in one of the verb families above, not here.
+_EVENT_ACTIONS: frozenset[str] = frozenset({"REGISTER", "JOB_RUN_STARTED"})
 
 # Bespoke members not modeled by any spec.
 #
@@ -28,6 +47,11 @@ from src.framework.audit.core import AuditAction
 #   still requires the full CREATE/UPDATE/DELETE triple as a precondition,
 #   which is why UPDATE and DELETE are listed even though only CREATE is
 #   wired to a callsite today.
+# - `ADD_POST_CONNECTION` is fired by `handle_send_post_message` in
+#   `src/domain/logic/posts/handlers.py` when a user's first message about
+#   a post creates their `PostConnection` edge. The edge has no routes of
+#   its own (it rides the `/posts/{id}/message` event) and no remove verb,
+#   so there is no EntitySpec / `EdgeAudit` to derive it from.
 #
 # Keep tight: add an entry only when adding a corresponding
 # `record_audit(action=...)` callsite or `AuditedResource` declaration.
@@ -38,6 +62,7 @@ _BESPOKE: frozenset[str] = frozenset(
         "CREATE_VERIFICATION",
         "UPDATE_VERIFICATION",
         "DELETE_VERIFICATION",
+        "ADD_POST_CONNECTION",
     }
 )
 
@@ -90,3 +115,47 @@ def test_audit_action_members_match_specs():
         f"them in _BESPOKE, or remove them from the enum (after "
         f"confirming no persisted audit rows still reference the value)."
     )
+
+
+@pytest.mark.parametrize("member", list(AuditAction), ids=lambda m: m.name)
+def test_audit_action_name_follows_grammar(member: AuditAction):
+    """Every member is `<VERB>_<RESOURCE>` with a verb from one of the
+    audit-shape families, or a listed event. Values are persisted
+    forever, so a misnamed member can't be fixed after it ships."""
+    assert member.name in _EVENT_ACTIONS or _MUTATION_NAME.match(member.name), (
+        f"AuditAction.{member.name} doesn't follow the naming grammar. Use "
+        f"CREATE_/UPDATE_/DELETE_ (CRUD), ADD_/REMOVE_ (edge) or SET_ "
+        f"(state axis) + the resource name, or list a true no-mutation "
+        f"event in _EVENT_ACTIONS. See src/framework/audit/README.md."
+    )
+
+
+@pytest.mark.parametrize("member", list(AuditAction), ids=lambda m: m.name)
+def test_audit_action_value_is_lowercased_name(member: AuditAction):
+    assert member.value == member.name.lower()
+
+
+def test_spec_declared_actions_use_their_shape_verb():
+    """The verb must match the shape that declares it: a CRUD triple is
+    CREATE/UPDATE/DELETE, an edge's `add`/`remove` are ADD_/REMOVE_, a
+    state axis is SET_. Catches e.g. an edge spec mapping `add` to a
+    `CREATE_*` member."""
+    wrong: list[str] = []
+    for spec in ALL_ENTITY_SPECS:
+        if spec.audit is not None:
+            for verb, action in zip(
+                _CRUD_VERBS,
+                (spec.audit.create, spec.audit.update, spec.audit.delete),
+                strict=True,
+            ):
+                if not action.name.startswith(f"{verb}_"):
+                    wrong.append(f"{spec.name}.audit {verb}: {action.name}")
+        if spec.edge_audit is not None:
+            for verb, action in spec.edge_audit.actions.items():
+                prefix = _EDGE_VERBS.get(verb)
+                if prefix is None or not action.name.startswith(f"{prefix}_"):
+                    wrong.append(f"{spec.name}.edge_audit {verb!r}: {action.name}")
+        for axis in spec.state_axes:
+            if not axis.action.name.startswith(f"{_STATE_AXIS_VERB}_"):
+                wrong.append(f"{spec.name} state axis: {axis.action.name}")
+    assert not wrong, f"Spec audit actions use the wrong verb for their shape: {wrong}"

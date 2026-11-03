@@ -70,6 +70,11 @@ class AuditAction(str, Enum):
     ADD_FAVORITE = "add_favorite"
     REMOVE_FAVORITE = "remove_favorite"
     JOB_RUN_STARTED = "job_run_started"
+    # `PostConnection` (User↔Post edge) — created as a side effect of the
+    # first `POST /posts/{id}/message` a user sends about a post. Create-
+    # only (no disconnect), so there is no matching remove action. See
+    # `_BESPOKE` in `test_audit_action_drift.py`.
+    ADD_POST_CONNECTION = "add_post_connection"
     # `Verification` is append-only — only `CREATE_VERIFICATION` ever
     # fires. The triple is here (not just CREATE) because the
     # verification logic cluster declares a single `AuditedResource`

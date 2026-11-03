@@ -1,8 +1,15 @@
 {# Returned by `POST /posts/{post_id}/message` and HTMX-swapped over
    the message form in place. The `id="post-message"` matches the
    form's wrapper id so a follow-up swap (if the user sends a second
-   message after reloading) targets the same DOM node. #}
+   message after reloading) targets the same DOM node.
+
+   `newly_connected` is True only when this message created the sender's
+   `PostConnection` (#775) — announce it here once; for an existing edge
+   the panel already shows the "Connected" line above the form. #}
 <aside role="status" id="post-message">
+  {% if newly_connected %}
+    {% include "posts/_shared/_connected_status.html" %}
+  {% endif %}
   <strong>Message sent.</strong>
   The poster will see your email on their reply.
 </aside>

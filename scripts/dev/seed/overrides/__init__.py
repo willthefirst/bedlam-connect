@@ -52,6 +52,7 @@ from . import (  # noqa: E402,F401
     favorites,
     org_representations,
     organizations,
+    post_connections,
     posts,
     programs,
     saved_searches,

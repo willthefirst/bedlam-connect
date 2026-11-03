@@ -17,6 +17,7 @@ acceptable while the kind set is small.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -26,16 +27,23 @@ from pydantic import BaseModel
 from src.domain.logic import capabilities
 from src.domain.logic.clinicians.repository import ClinicianRepository
 from src.domain.logic.organizations.repository import OrganizationRepository
+from src.domain.logic.post_connections.repository import PostConnectionRepository
+from src.domain.logic.post_connections.schema import PostConnectionAuditSnapshot
+from src.domain.logic.posts.emails import send_post_message_email
 from src.domain.logic.posts.repository import PostRepository
 from src.domain.logic.programs.repository import ProgramRepository
 from src.domain.models import (
     Clinician,
     ClinicianAffiliation,
     Organization,
+    Post,
+    PostConnection,
     Program,
     User,
 )
 from src.framework.access.authz.authz import assert_fk_ownership
+from src.framework.audit.core import AuditAction, make_snapshotter, record_audit
+from src.framework.audit.repository import AuditRepository
 from src.framework.dispatch.pagination import (
     DEFAULT_PAGE_SIZE,
     Pager,
@@ -425,4 +433,93 @@ async def _post_owner_list_context(
         "can_act_as_provider": capabilities.can_act_as_provider(requesting_user),
         "current_user": requesting_user,
         "pager": Pager(page=page, base_query=base_query(request)),
+    }
+
+
+_CONNECTION_SNAPSHOT = make_snapshotter(PostConnectionAuditSnapshot)
+
+
+@dataclass(frozen=True, slots=True)
+class SentPostMessage:
+    """Result of `handle_send_post_message`. `newly_connected` is True
+    only when this message created the edge — the success fragment uses
+    it to announce the connection once, without duplicating the
+    "Connected" line the panel already shows for an existing edge."""
+
+    post: Post
+    connection: PostConnection
+    newly_connected: bool
+
+
+async def handle_send_post_message(
+    *,
+    post_id: UUID,
+    body: str,
+    post_repo: PostRepository,
+    connection_repo: PostConnectionRepository,
+    audit_repo: AuditRepository,
+    requesting_user: User,
+) -> SentPostMessage:
+    """Email `body` to the post's owner and record the sender's connection.
+
+    The first message a user sends about a post creates their
+    `PostConnection` edge (audited as `add_post_connection`); later messages
+    reuse the existing edge and write no audit row. The body is never
+    persisted — it lives only in the outbound email.
+
+    The commit runs after the email sends, so a failed send leaves no
+    edge behind: a connection means a message actually went out.
+
+    403 if the sender doesn't clear `can_act_as_provider` or owns the
+    post; 404 if the post does not exist.
+    """
+    if not capabilities.can_act_as_provider(requesting_user):
+        raise ForbiddenError(detail="Provider network access required.")
+    post = await post_repo.get_by_model_id(Post, post_id)
+    if post is None:
+        raise NotFoundError(detail="Post not found")
+    if post.owner_id == requesting_user.id:
+        raise ForbiddenError(detail="You can't message your own post.")
+
+    connection = await connection_repo.get_by_pair(
+        user_id=requesting_user.id, post_id=post_id
+    )
+    newly_connected = connection is None
+    if connection is None:
+        connection = await connection_repo.add_connection(
+            user_id=requesting_user.id, post_id=post_id
+        )
+        await record_audit(
+            audit_repo,
+            actor_id=requesting_user.id,
+            resource_type="post_connection",
+            resource_id=connection.id,
+            action=AuditAction.ADD_POST_CONNECTION,
+            before=None,
+            after=_CONNECTION_SNAPSHOT(connection),
+        )
+
+    await send_post_message_email(post=post, sender=requesting_user, body=body)
+    await connection_repo.session.commit()
+    logger.info(f"Handler: user {requesting_user.id} messaged post {post_id}")
+    return SentPostMessage(
+        post=post, connection=connection, newly_connected=newly_connected
+    )
+
+
+async def post_detail_extras(
+    *,
+    target: Post,
+    requesting_user: User | None,
+    post_connection_repo: PostConnectionRepository,
+    **_: Any,
+) -> dict[str, Any]:
+    """Per-viewer detail context: the viewer's connection to this post,
+    if any. The connect panel shows "Connected · {date}" when present."""
+    if requesting_user is None:
+        return {"connection": None}
+    return {
+        "connection": await post_connection_repo.get_by_pair(
+            user_id=requesting_user.id, post_id=target.id
+        ),
     }
