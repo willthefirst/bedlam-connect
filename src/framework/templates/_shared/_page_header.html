@@ -18,8 +18,8 @@ vars and this partial renders them as pre-rendered HTML. The partial
 inherits the caller's context, so `_on_posts` / `_on_users_me` /
 `is_authenticated` resolve normally.
 
-When authenticated, the primary nav is: brand link (→ the referral
-board, `entity_url('post') ~ '?kind=referral'` — the signed-in "home")
+When authenticated, the primary nav is: brand link (→ `/`, which
+redirects signed-in viewers to the unfiltered `/posts` board)
 → a `Post` link (fronted by a `plus` glyph → the post create form) → an
 avatar `<details>` menu (My posts → the viewer's own posts via
 `?owner=me`, Account → the self user page, Sign out via `hx-post`).
