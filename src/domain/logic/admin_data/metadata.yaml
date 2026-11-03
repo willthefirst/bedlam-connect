@@ -319,3 +319,190 @@ databases:
           from events e
           left join member_names mn on mn.user_id = e.who_id
           order by julianday(e.at)
+
+# Dashboards (datasette-dashboards) at /admin/data/-/dashboards. Charts
+# read the same views as the saved queries above — `post_outcomes` is
+# still the one definition of "good" — and never restate a daily
+# query's to-do logic (the daily queries are the to-do lists).
+plugins:
+  datasette-dashboards:
+    launch-health:
+      title: Launch health
+      description: >-
+        The launch goal: for 4 weeks in a row, at least 70% of posts get a
+        "good" connection within three days. Share good = good / decided
+        posts (waiting excluded), by the Monday (UTC) of the week posted.
+      layout:
+        - [share-last-week, goal-streak, connections-7d, active-members]
+        - [share-trend, share-trend, outcomes-by-week, outcomes-by-week]
+        - [connections-by-week, connections-by-week, onboarding, onboarding]
+      # No `default:` on purpose. With a default, the plugin redirects a
+      # bare visit to `?weeks=…` and copies every request cookie onto the
+      # redirect via Datasette's `set_cookie` — reissuing our session
+      # cookie without HttpOnly/Secure. Blank = all weeks.
+      filters:
+        weeks:
+          name: Weeks to show (blank = all)
+          type: number
+          min: 1
+          max: 26
+      charts:
+        share-last-week:
+          title: Share good · last week (goal 70%)
+          db: bedlam
+          query: |-
+            select coalesce(
+              cast(round(100.0 * sum(outcome = 'good') / nullif(sum(outcome <> 'waiting'), 0)) as integer),
+              0
+            ) as share
+            from post_outcomes
+            where week_posted = date('now', '-6 days', 'weekday 1', '-7 days')
+          library: metric
+          display:
+            field: share
+            suffix: "%"
+
+        goal-streak:
+          title: Weeks on goal in a row (target 4)
+          db: bedlam
+          # Consecutive completed weeks, newest first, with share good
+          # >= 70%. A week with no decided posts breaks the streak.
+          query: |-
+            with weeks as (
+              select
+                week_posted,
+                100.0 * sum(outcome = 'good') / nullif(sum(outcome <> 'waiting'), 0) as share
+              from post_outcomes
+              where week_posted < date('now', '-6 days', 'weekday 1')
+              group by week_posted
+            ),
+            ranked as (
+              select share, row_number() over (order by week_posted desc) as rn
+              from weeks
+            )
+            select coalesce(
+              (select min(rn) - 1 from ranked where share is null or share < 70),
+              (select count(*) from ranked)
+            ) as streak
+          library: metric
+          display:
+            field: streak
+
+        connections-7d:
+          title: Connections · last 7 days
+          db: bedlam
+          query: |-
+            select count(*) as n
+            from post_connections
+            where julianday('now') - julianday(created_at) <= 7
+          library: metric
+          display:
+            field: n
+
+        active-members:
+          title: Active members (posted or reached out)
+          db: bedlam
+          query: select count(*) as n from member_onboarding where status = 'active'
+          library: metric
+          display:
+            field: n
+
+        share-trend:
+          title: Share good by week posted
+          db: bedlam
+          query: |-
+            select
+              week_posted as week,
+              round(100.0 * sum(outcome = 'good') / nullif(sum(outcome <> 'waiting'), 0), 1) as share_good,
+              70 as goal
+            from post_outcomes
+            where true
+              [[ and julianday(week_posted) >= julianday(date('now', '-6 days', 'weekday 1', '-' || ((:weeks - 1) * 7) || ' days')) ]]
+            group by week_posted
+            order by week_posted
+          library: vega-lite
+          display:
+            layer:
+              - mark: { type: line, point: true, tooltip: true }
+                encoding:
+                  x: { field: week, type: temporal, timeUnit: yearmonthdate, title: Week posted }
+                  y:
+                    field: share_good
+                    type: quantitative
+                    title: Share good (%)
+                    scale: { domain: [0, 100] }
+              - mark: { type: rule, strokeDash: [4, 4], color: "#888888" }
+                encoding:
+                  y: { field: goal, type: quantitative }
+
+        outcomes-by-week:
+          title: Post outcomes by week posted
+          db: bedlam
+          query: |-
+            select week_posted as week, outcome, count(*) as posts
+            from post_outcomes
+            where true
+              [[ and julianday(week_posted) >= julianday(date('now', '-6 days', 'weekday 1', '-' || ((:weeks - 1) * 7) || ' days')) ]]
+            group by week_posted, outcome
+            order by week_posted
+          library: vega-lite
+          display:
+            mark: { type: bar, tooltip: true }
+            encoding:
+              x: { field: week, type: ordinal, title: Week posted }
+              y: { field: posts, type: quantitative, stack: true, title: Posts }
+              color:
+                field: outcome
+                type: nominal
+                title: Outcome
+                scale:
+                  domain: [good, not_fit, none, waiting]
+                  range: ["#2e7d32", "#ef6c00", "#c62828", "#9e9e9e"]
+
+        connections-by-week:
+          title: Connections and messages by week
+          db: bedlam
+          query: |-
+            select week, kind, n from (
+              select date(created_at, '-6 days', 'weekday 1') as week, 'connections' as kind, count(*) as n
+              from post_connections
+              group by 1
+              union all
+              select date(created_at, '-6 days', 'weekday 1'), 'messages', count(*)
+              from audit_log
+              where action = 'send_post_message'
+              group by 1
+            )
+            where true
+              [[ and julianday(week) >= julianday(date('now', '-6 days', 'weekday 1', '-' || ((:weeks - 1) * 7) || ' days')) ]]
+            order by week
+          library: vega-lite
+          display:
+            mark: { type: bar, tooltip: true }
+            encoding:
+              x: { field: week, type: ordinal, title: Week }
+              xOffset: { field: kind }
+              y: { field: n, type: quantitative, title: Count }
+              color: { field: kind, type: nominal, title: "" }
+
+        onboarding:
+          title: Where members are
+          db: bedlam
+          query: |-
+            select
+              case
+                when next_step = 'verify_email' then '1. Email not verified'
+                when next_step = 'verify_identity' then '2. Identity not verified'
+                when status = 'onboarded_inactive' then '3. Onboarded, no activity'
+                else '4. Active'
+              end as stage,
+              count(*) as members
+            from member_onboarding
+            group by stage
+            order by stage
+          library: vega-lite
+          display:
+            mark: { type: bar, tooltip: true }
+            encoding:
+              y: { field: stage, type: nominal, sort: null, title: "" }
+              x: { field: members, type: quantitative, title: Members }

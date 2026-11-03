@@ -46,6 +46,10 @@ app = [
     # superuser-only at `/admin/data/` (see `src/domain/admin_data/`).
     # <1: 1.0 is an alpha with a different metadata/permissions API.
     "datasette>=0.65,<1",
+    # Charts + KPI tiles for the admin's "Launch health" dashboard, defined
+    # in the same `metadata.yaml`. <0.9: 0.8 is the release verified
+    # against Datasette 0.65; it bundles Vega locally (no CDN).
+    "datasette-dashboards>=0.8,<0.9",
     # Parses the saved queries in `src/domain/logic/admin_data/metadata.yaml`.
     "PyYAML",
 ]

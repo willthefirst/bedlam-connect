@@ -270,6 +270,7 @@ app = [
     { name = "async-lru" },
     { name = "asyncstdlib" },
     { name = "datasette" },
+    { name = "datasette-dashboards" },
     { name = "fastapi" },
     { name = "fastapi-users", extra = ["sqlalchemy"] },
     { name = "httpx" },
@@ -296,6 +297,7 @@ full = [
     { name = "autoflake" },
     { name = "black" },
     { name = "datasette" },
+    { name = "datasette-dashboards" },
     { name = "djlint" },
     { name = "fastapi" },
     { name = "fastapi-users", extra = ["sqlalchemy"] },
@@ -350,6 +352,7 @@ requires-dist = [
     { name = "bedlam-connect", extras = ["dev", "test", "lint"], marker = "extra == 'all'" },
     { name = "black", marker = "extra == 'lint'", specifier = "==26.3.1" },
     { name = "datasette", marker = "extra == 'app'", specifier = ">=0.65,<1" },
+    { name = "datasette-dashboards", marker = "extra == 'app'", specifier = ">=0.8,<0.9" },
     { name = "djlint", marker = "extra == 'lint'", specifier = "==1.36.4" },
     { name = "fastapi", marker = "extra == 'app'" },
     { name = "fastapi-users", extras = ["sqlalchemy"], marker = "extra == 'app'" },
@@ -415,6 +418,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ac/94/2424338fb2d1875e9e83eed4c8e9c67f6905ec25afd826a911aea2b02535/black-26.3.1-cp314-cp314-win_amd64.whl", hash = "sha256:0126ae5b7c09957da2bdbd91a9ba1207453feada9e9fe51992848658c6c8e01c", size = 1445855, upload-time = "2026-03-12T03:40:35.442Z" },
     { url = "https://files.pythonhosted.org/packages/86/43/0c3338bd928afb8ee7471f1a4eec3bdbe2245ccb4a646092a222e8669840/black-26.3.1-cp314-cp314-win_arm64.whl", hash = "sha256:92c0ec1f2cc149551a2b7b47efc32c866406b6891b0ee4625e95967c8f4acfb1", size = 1258109, upload-time = "2026-03-12T03:40:36.832Z" },
     { url = "https://files.pythonhosted.org/packages/8e/0d/52d98722666d6fc6c3dd4c76df339501d6efd40e0ff95e6186a7b7f0befd/black-26.3.1-py3-none-any.whl", hash = "sha256:2bd5aa94fc267d38bb21a70d7410a89f1a1d318841855f698746f8e7f51acd1b", size = 207542, upload-time = "2026-03-12T03:36:01.668Z" },
+]
+
+[[package]]
+name = "bleach"
+version = "6.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "webencodings" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/3c/e12ac860709702bd5ebeb9b56a4fe334f1001246ee1b8f2b7ee28912df7d/bleach-6.4.0.tar.gz", hash = "sha256:4202482733d85cedd04e59fcb2f89f4e4c7c385a78d3c3c23c30446843a37452", size = 204857, upload-time = "2026-06-05T13:01:13.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/9d/40b6267367182187139a4000b82a3b287d84d745bccd808e75d916920e9d/bleach-6.4.0-py3-none-any.whl", hash = "sha256:4b6b6a54fff2e69a3dde9d21cc6301220bee3c3cb792187d11403fd795031081", size = 165109, upload-time = "2026-06-05T13:01:12.504Z" },
 ]
 
 [[package]]
@@ -755,6 +770,46 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/98/4a/75224122c9cc725b6dcc9466fff8a720c99a2d7b67ce866a82c52a5f2141/datasette-0.65.5.tar.gz", hash = "sha256:8d16ab1bf9a2753089cd3cb079045885d440f11267973e89e08e7fecf555264a", size = 416175, upload-time = "2026-09-17T00:00:08.656Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b0/11/c30114a7f78ed33a13d7e98421f2ca1e1ead61a7441b745663e20f31bc4c/datasette-0.65.5-py3-none-any.whl", hash = "sha256:ca5faf528d4c1acc22e78b0274257435683ae6c75cf275939f2b92a10e498dbb", size = 399477, upload-time = "2026-09-17T00:00:06.814Z" },
+]
+
+[[package]]
+name = "datasette-dashboards"
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "datasette" },
+    { name = "datasette-leaflet" },
+    { name = "datasette-render-markdown" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/93/ac/d56618c168404df71ff151ebfab4455d17f4d45b3cacceb3c86d94cea123/datasette_dashboards-0.8.0.tar.gz", hash = "sha256:5da852457203a3553b52cde36ad228af63de8f68f7a3e6556d3532a5d916cfff", size = 292787, upload-time = "2025-11-18T22:36:40.526Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/37/ab/caf44d5dce374b7812027bcdf235d8c5e33ecc8e00a297c83b46634cfa01/datasette_dashboards-0.8.0-py3-none-any.whl", hash = "sha256:246fe716da3168a10985989febc4c10cd18d3f5d9721f0c0446eee5fa8e34ada", size = 296575, upload-time = "2025-11-18T22:36:38.741Z" },
+]
+
+[[package]]
+name = "datasette-leaflet"
+version = "0.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "datasette" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/88/6e/444b1ded1cd8f71cd86f4461c06ee88be2bb0682b0d54aa942c323f91411/datasette-leaflet-0.2.2.tar.gz", hash = "sha256:8fd4e634304be392ae6f7de770d4f22b95a37caecd676a35faeb6200da9423bc", size = 113285, upload-time = "2021-02-01T22:21:21.93Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/df/61e8a7d601a2c4992f7e9f38a6b983a9f9b873fbeebe4248090eea4b5d87/datasette_leaflet-0.2.2-py3-none-any.whl", hash = "sha256:fd88c25666e7680b25b4c6e5546bd02c9f5836bbc0fee61042dbb6b93d4139f0", size = 112532, upload-time = "2021-02-01T22:21:20.787Z" },
+]
+
+[[package]]
+name = "datasette-render-markdown"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bleach" },
+    { name = "datasette" },
+    { name = "markdown" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/99/3074dc4a0129d2dbe12f8492daa392c47d927b380e9d96ffd781b22f887b/datasette-render-markdown-2.2.1.tar.gz", hash = "sha256:97eca47769ad81a1d225a0c32efe50a2f6f54fbeaa97b883855dd0591ba5b8f5", size = 11876, upload-time = "2023-08-15T03:11:42.739Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/71/c504d5fa9786601f6292386bd230a641d64faf891d3d91e8481b4f082937/datasette_render_markdown-2.2.1-py3-none-any.whl", hash = "sha256:6e72641b11568afd61e10ec2813c07661cdb1f26ce2935982b30860392bf94dc", size = 10326, upload-time = "2023-08-15T03:11:41.172Z" },
 ]
 
 [[package]]
@@ -1198,6 +1253,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/00/62/791b31e69ae182791ec67f04850f2f062716bbd205483d63a215f3e062d3/mako-1.3.12.tar.gz", hash = "sha256:9f778e93289bd410bb35daadeb4fc66d95a746f0b75777b942088b7fd7af550a", size = 400219, upload-time = "2026-04-28T19:01:08.512Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/b1/a0ec7a5a9db730a08daef1fdfb8090435b82465abbf758a596f0ea88727e/mako-1.3.12-py3-none-any.whl", hash = "sha256:8f61569480282dbf557145ce441e4ba888be453c30989f879f0d652e39f53ea9", size = 78521, upload-time = "2026-04-28T19:01:10.393Z" },
+]
+
+[[package]]
+name = "markdown"
+version = "3.11.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/32/0b4d0297064244f04af4331b65de16237cc3cce07474171ee14222a28981/markdown-3.11.2.tar.gz", hash = "sha256:87bf5d90f2d2882e2c02fcda182c2800456b985bff38913867c49706481514b0", size = 491445, upload-time = "2026-10-19T19:41:42.687Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/66/bcab3b677b71ad286b4e607e3427499537c76e13ad2e22584ba7a7d9882c/markdown-3.11.2-py3-none-any.whl", hash = "sha256:f80390747a2a0ff2ba54da074ce4f862f72a6685f608cd2637b646a6d83993f5", size = 114266, upload-time = "2026-10-19T19:41:41.244Z" },
 ]
 
 [[package]]
@@ -2623,6 +2687,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/27/0b/a54103cfd732bb703c7a749222011a0483ef3705948dae3b203158601119/watchfiles-1.2.0-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:094b9b70103d4e963499bdea001ee3c2697b144cd9ae6218a62c0f89ec9e31db", size = 396629, upload-time = "2026-05-18T04:32:03.268Z" },
     { url = "https://files.pythonhosted.org/packages/5e/2c/73f31a3b893886206c3f54d73e8ad8dee58cdb2f69ad2622e0a8a9e07f4e/watchfiles-1.2.0-pp311-pypy311_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b0ef001f8c25ad0fa9529f914c1600647ecd0f542d11c19b7894768c67b6acb7", size = 457318, upload-time = "2026-05-18T04:31:01.932Z" },
     { url = "https://files.pythonhosted.org/packages/e9/f9/45d021e4a5cc7b9dd567f7cbb06d3b75f751a690063fb6cc7ec60f4e46b7/watchfiles-1.2.0-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a88fc94e647bc4eec523f1caa540258eb71d14278b9daf72fa1e2658a98df0f0", size = 457771, upload-time = "2026-05-18T04:30:56.331Z" },
+]
+
+[[package]]
+name = "webencodings"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/a0/8fd707bcb776a7be556bad06a2ea5fb9bd519df78ef8e26f70ccf0f38bff/webencodings-0.6.1.tar.gz", hash = "sha256:565f9ad031c702dae404e27a099e3e09186a3ab1b9520f06d215502b651fd910", size = 15001, upload-time = "2026-08-15T14:22:57.549Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/c6/040cbc72480d789a5f40d63fb484d3106554c4dfa2d2b70ad5022057750f/webencodings-0.6.1-py3-none-any.whl", hash = "sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b", size = 8745, upload-time = "2026-08-15T14:22:56.31Z" },
 ]
 
 [[package]]
