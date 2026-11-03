@@ -1141,11 +1141,11 @@ async def test_home_anonymous_returns_landing_page(test_client: AsyncClient):
     assert "help@bedlamconnect.com" in response.text
 
 
-async def test_root_authenticated_redirects_to_referral_board(
+async def test_root_authenticated_redirects_to_unfiltered_posts(
     authenticated_client: AsyncClient,
 ):
-    """Authenticated GET / redirects to the referral board, with no
-    default filters (`/posts?kind=referral`) — the signed-in "home"."""
+    """Authenticated GET / redirects to the posts board, with no
+    default filters (bare `/posts`) — the signed-in "home"."""
     response = await authenticated_client.get("/", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "/posts?kind=referral"
+    assert response.headers["location"] == "/posts"

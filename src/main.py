@@ -153,14 +153,14 @@ async def read_root(request: Request, user=Depends(current_optional_user)):
     # changing the signed-in landing (destination or default filter) is a
     # one-line edit here, not a hunt across redirects and templates.
     #
-    # Signed in → the referral board, unfiltered (no default state —
+    # Signed in → the posts board, unfiltered (no default kind or state —
     # the viewer picks their own filters).
     # Anonymous → the public landing page rendered in place (not the login
     # wall, and not `/posts`, which is auth-gated). `/home` is retired from
     # the live flow — nothing links to it — but kept defined below for
     # possible later use.
     if user is not None:
-        return RedirectResponse(url="/posts?kind=referral", status_code=302)
+        return RedirectResponse(url="/posts", status_code=302)
     return APIResponse.html_response(
         template_name="landing.html",
         context={},

@@ -20,8 +20,8 @@ Each item is a `(label, href, lock_reason?)` tuple. Per item:
   - `href` set, no lock → a plain `<a href>` link.
   - neither → plain current-page text (`aria-current="page"`).
 
-A "Home" root (→ `/posts?kind=referral`, the referral board that "home"
-now means) is prepended to every chain, so callers pass only the
+A "Home" root (→ `/`, which redirects signed-in viewers to the unfiltered `/posts`
+board) is prepended to every chain, so callers pass only the
 ancestors + current segment. An empty `items` therefore renders just the
 Home crumb.
 
