@@ -70,6 +70,30 @@ async def test_superuser_sees_the_saved_queries(
     assert response.json() == []
 
 
+async def test_superuser_sees_the_launch_health_dashboard(
+    authenticated_client: AsyncClient,
+    logged_in_user: User,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    admin_data_db,
+):
+    """The datasette-dashboards plugin loads through the admin route and
+    serves its bundled assets under the Datasette base URL."""
+    await promote_to_admin(db_test_session_manager, logged_in_user.email)
+
+    response = await authenticated_client.get("/admin/data/-/dashboards/launch-health")
+    assert response.status_code == 200
+    assert "Launch health" in response.text
+    # A filter `default:` makes the plugin redirect and re-set every
+    # request cookie — our session cookie included — without
+    # HttpOnly/Secure. The dashboard must never set cookies.
+    assert "set-cookie" not in response.headers
+
+    script = re.search(r'src="(/admin/data/[^"]*dashboards\.js[^"]*)"', response.text)
+    assert script, "dashboard JS should be served under /admin/data/"
+    asset = await authenticated_client.get(script.group(1))
+    assert asset.status_code == 200
+
+
 async def test_ad_hoc_sql_cannot_write(
     authenticated_client: AsyncClient,
     logged_in_user: User,
