@@ -675,6 +675,12 @@ PLACEHOLDER_OK: Final[frozenset[str]] = frozenset(
         # audit rows.
         "resource_type",
         "action",
+        # `admin_notes.value` / `.note` are filled by the `admin_notes`
+        # override, never the generic generator; `value`'s
+        # action-dependent CHECK is cross-column, which the per-column
+        # lint can't resolve, so both are acknowledged here.
+        "value",
+        "note",
         # Org's cached NPPES "Authorized Official" name (free text from
         # NPPES). Seed data doesn't simulate NPPES so a placeholder
         # value here is meaningless — the column is only populated by

@@ -60,7 +60,8 @@ scripts/dev/seed/
     ├── clinicians.py   # Clinician + ClinicianAffiliation
     ├── credentials.py  # 1-3 per clinician fan-out
     ├── posts.py        # kind discriminator + matching detail
-    ├── post_connections.py # M:N dedup, no self-connections (post-pass)
+    ├── post_connections.py # recent posts, timed after posting, + message events (post-pass)
+    ├── admin_notes.py  # admin review / check-in / verdict trail (post-pass)
     ├── verifications.py # one per selected clinician
     └── favorites.py    # M:N dedup
 ```

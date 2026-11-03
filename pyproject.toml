@@ -42,6 +42,12 @@ app = [
     # Error tracking. Disabled when `SENTRY_DSN` is unset (empty string).
     # See `src/main.py` for init and `src/framework/config.py` for the setting.
     "sentry-sdk[fastapi]",
+    # Admin observability: saved SQL queries over the live DB, mounted
+    # superuser-only at `/admin/data/` (see `src/domain/admin_data/`).
+    # <1: 1.0 is an alpha with a different metadata/permissions API.
+    "datasette>=0.65,<1",
+    # Parses the saved queries in `src/domain/logic/admin_data/metadata.yaml`.
+    "PyYAML",
 ]
 
 dev = [

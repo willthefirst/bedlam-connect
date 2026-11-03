@@ -627,6 +627,43 @@ AUTHORITY_STATUSES: Final[tuple[str, ...]] = AuthorityStatus.values()
 AUTHORITY_STATUS_LABELS: Final[dict[str, str]] = AuthorityStatus.labels()
 
 
+# `AdminNote` vocabularies — written only by the admin's Datasette
+# "Add a note" query (`src/domain/logic/admin_data/`), so the DB CHECKs are the only
+# validation these values get. `subject_type` names what the note is
+# about; `action` is what the admin did; `value` is the structured
+# outcome for the two actions that have one (a check-in reply mirrors
+# the check-in email's "Yes / Not yet / No"; a verdict is the
+# good / not-good call that `post_outcomes` reads).
+class AdminNoteSubject(LabeledChoice):
+    connection = "connection", "Connection"
+    post = "post", "Post"
+    member = "member", "Member"
+
+
+class AdminNoteAction(LabeledChoice):
+    reviewed = "reviewed", "Reviewed"
+    check_in_sent = "check_in_sent", "Check-in sent"
+    check_in_reply = "check_in_reply", "Check-in reply"
+    verdict = "verdict", "Verdict"
+
+
+class CheckInReply(LabeledChoice):
+    yes = "yes", "Yes"
+    not_yet = "not_yet", "Not yet"
+    no = "no", "No"
+
+
+class ConnectionVerdict(LabeledChoice):
+    good = "good", "Good"
+    not_good = "not_good", "Not good"
+
+
+ADMIN_NOTE_SUBJECTS: Final[tuple[str, ...]] = AdminNoteSubject.values()
+ADMIN_NOTE_ACTIONS: Final[tuple[str, ...]] = AdminNoteAction.values()
+CHECK_IN_REPLIES: Final[tuple[str, ...]] = CheckInReply.values()
+CONNECTION_VERDICTS: Final[tuple[str, ...]] = ConnectionVerdict.values()
+
+
 def check_in_tuple_sql(column: str, values: tuple[str, ...]) -> str:
     """SQL fragment for a `column IN (...)` CHECK constraint, rendered
     from a tuple. Used by per-kind detail tables so the DB-level

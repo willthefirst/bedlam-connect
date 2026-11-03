@@ -424,3 +424,32 @@ async def promote_to_admin(
             user = result.scalars().first()
             assert user is not None, f"Test user {user_email} not found"
             user.is_superuser = True
+
+
+def migrate_sqlite_file(db_path) -> None:
+    """Build a file-backed SQLite DB at `db_path` by running every Alembic
+    migration (`upgrade head`).
+
+    The default test DB is in-memory via `metadata.create_all`, which
+    skips anything that only exists in migrations — the observability
+    SQL views (`src/domain/logic/admin_data/`) — and which Datasette
+    can't open. Tests that need either build a file with this instead.
+    """
+    import os
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    root = Path(__file__).resolve().parent.parent
+    cfg = Config(str(root / "config" / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "alembic"))
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    try:
+        command.upgrade(cfg, "head")
+    finally:
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
