@@ -19,6 +19,7 @@ from .enums import (
 from .favorites.user_favorite import UserFavorite
 from .org_representations.org_representation import OrgRepresentation
 from .organizations.organization import Organization
+from .post_connections.post_connection import PostConnection
 from .posts.intake_detail import IntakeDetail
 from .posts.opening_detail import OpeningDetail
 from .posts.post import Post
@@ -49,6 +50,7 @@ __all__ = [
     "POST_KIND_NAMES",
     "POST_KINDS",
     "Post",
+    "PostConnection",
     "PostKindSpec",
     "Program",
     "SavedSearch",

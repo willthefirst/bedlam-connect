@@ -26,6 +26,7 @@ from typing import Final
 
 from src.domain.logic.clinicians.repository import ClinicianRepository
 from src.domain.logic.organizations.repository import OrganizationRepository
+from src.domain.logic.post_connections.repository import PostConnectionRepository
 from src.domain.logic.posts.repository import get_post_repository
 from src.domain.logic.posts.schema import (
     post_audit_snapshot,
@@ -172,6 +173,10 @@ POST_ENTITY: Final[EntitySpec] = EntitySpec(
         form_edit="posts/form_edit.html",
     ),
     update_redirect=Redirects.to_detail("posts", "post_id"),
+    # Per-viewer detail extras: the viewer's `PostConnection` to this post
+    # (or None), so the connect panel can show "Connected · {date}".
+    detail_extras_path="src.domain.logic.posts.handlers.post_detail_extras",
+    detail_extras_repos=(("post_connection_repo", PostConnectionRepository),),
     # Two authority paths on create (see `_assert_post_payload_authz`):
     # the **self** path (own the per-kind FK row + hold the matching
     # claim) or the **org-rep** path (be a verified rep of the org the

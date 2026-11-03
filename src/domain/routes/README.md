@@ -35,6 +35,7 @@ The grammar fits resource-shaped CRUD. These stay hand-written. A hand-written *
 | `GET /auth/{register,login,forgot-password,reset-password/{token}}` | `auth/auth_pages.py` | Pure form rendering. |
 | `GET /users/me`, `GET /users/me/clinicians` | `users.py` | Singleton aliases — mounted via `singleton_alias=` on the existing `mount_detail` / `mount_related_list`. |
 | `POST/DELETE /users/me/favorites/{clinician_id}` | `favorites.py` | M:N edge add/remove toggle via `mount_edge_routes` (no `list_handler` → no list page; favorited clinicians are browsed via `/clinicians?favorited=me`). |
+| `POST /posts/{post_id}/message` | `posts.py` | Event endpoint (emails the post owner). The sender's first message also creates their `PostConnection` edge — the edge has no routes of its own because it is create-only (no disconnect) and only ever born from a sent message. |
 | `GET /users/me/access`, `GET /users/me/access/capabilities/{name}` | `access.py` | Derived read view — capability posture, no stored row. |
 | `GET /users/me/email/form` | `user_email.py` | Email field-cluster subresource form — self-only; surfaces verification status, hosts the unverified-viewer / post-resend inbox CTA, and the resend-verification action. |
 | `GET /admin/audit` | `admin.py` | Derived read view over the framework-owned audit log — superuser-only, paginated, no stored resource. |

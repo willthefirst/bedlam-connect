@@ -1,0 +1,6 @@
+{# "Connected · {date}" line for a viewer's `PostConnection` to a post
+   (#775). One home for the copy: the connect panel renders it for an
+   existing edge, and `posts/_message_sent.html` renders it when the
+   message just created the edge. Reads `connection` from the including
+   context. #}
+<p class="meta" data-row-id="connected">Connected · {{ connection.created_at | format_post_date }}</p>

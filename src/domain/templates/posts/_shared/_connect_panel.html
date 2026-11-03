@@ -16,8 +16,14 @@
    panel wants an `<h2>` section heading that sits level with the post's
    own fact-group headings on the left.
 
-   Reads `view` / `post` / `can_act_as_provider` / `capabilities` from the
-   including context (detail.html). #}
+   A viewer who has already messaged about this post has a
+   `PostConnection` edge (`connection`, from `post_detail_extras`); the
+   panel shows "Connected · {date}" above the form, which stays so they
+   can message again. `connection` may be undefined (contract-test stub
+   context) — treated as not connected.
+
+   Reads `view` / `post` / `can_act_as_provider` / `capabilities` /
+   `connection` from the including context (detail.html). #}
 {%- from "_shared/sections.html" import fact, facts_block -%}
 {%- from "_shared/_provider_ref.html" import provider_ref -%}
 {%- from "_shared/_locked.html" import locked_action -%}
@@ -30,6 +36,9 @@
     {%- endcall %}
   {%- endif %}
   {% if can_act_as_provider %}
+    {% if connection %}
+      {% include "posts/_shared/_connected_status.html" %}
+    {% endif %}
     {% include "posts/_shared/_message_form.html" %}
   {% else %}
     {{ locked_action(capabilities.REASON_NOT_A_VERIFIED_PROVIDER, "Message", extra_class="secondary") }}

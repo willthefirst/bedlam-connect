@@ -4,15 +4,19 @@ from fastapi import Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
 from src.auth_config import current_active_user
-from src.domain.logic.capabilities import can_act_as_provider
-from src.domain.logic.posts.emails import send_post_message_email
+from src.domain.logic.post_connections.repository import (
+    PostConnectionRepository,
+    get_post_connection_repository,
+)
+from src.domain.logic.posts.handlers import handle_send_post_message
 from src.domain.logic.posts.repository import PostRepository, get_post_repository
-from src.domain.models import Post, User
+from src.domain.models import User
 from src.domain.specs import POST_ENTITY
 from src.framework import register_entity
+from src.framework.audit.repository import AuditRepository
 from src.framework.dispatch.resource_routes import mount_entity
-from src.framework.http.exceptions import ForbiddenError, NotFoundError
 from src.framework.http.responses import APIResponse
+from src.framework.persistence.dependencies import get_audit_repository
 
 router = register_entity(POST_ENTITY)
 
@@ -58,36 +62,41 @@ async def send_post_message(
     body_in: _PostMessageBody,
     request: Request,
     post_repo: PostRepository = Depends(get_post_repository),
+    connection_repo: PostConnectionRepository = Depends(get_post_connection_repository),
+    audit_repo: AuditRepository = Depends(get_audit_repository),
     requesting_user: User = Depends(current_active_user),
 ):
     """In-app "message the poster" event endpoint.
 
     Event-shaped (RESOURCE_GRAMMAR § "POST /<r>/{id}/<event>") — fires
     an outbound transactional email to the post owner with the
-    sender's email on `Reply-To`, persists nothing. The whole point of
-    the flow is to let the poster continue the conversation off-platform
-    in their own mail client, so any history we'd persist would only
-    diverge from what actually happened.
+    sender's email on `Reply-To`, and records the sender's
+    `PostConnection` edge on their first message about the post (#775).
+    The message body itself is never persisted: the conversation
+    continues off-platform in the poster's own mail client, so any body
+    history we'd store would only diverge from what actually happened.
+    The edge records only *that* the sender reached out.
 
-    Authz: the sender must clear `can_act_as_provider` — the same gate
-    that controlled visibility of the prior `mailto:` Email button on
-    the post detail/list cards. Tightening this to `can_message`
-    (clinician-only, per `domain/logic/capabilities.py`) is a separate
-    concern; the new endpoint preserves the prior CTA's visibility
-    rule so this change is mechanism-only, not also a permission
-    change.
+    Authz: the sender must clear `can_act_as_provider` and must not own
+    the post. Orchestration lives in `handle_send_post_message`.
 
     Returns an HTML fragment HTMX swaps over the form in place.
     """
-    if not can_act_as_provider(requesting_user):
-        raise ForbiddenError(detail="Provider network access required.")
-    post = await post_repo.get_by_model_id(Post, post_id)
-    if post is None:
-        raise NotFoundError(detail="Post not found")
-    await send_post_message_email(post=post, sender=requesting_user, body=body_in.body)
+    sent = await handle_send_post_message(
+        post_id=post_id,
+        body=body_in.body,
+        post_repo=post_repo,
+        connection_repo=connection_repo,
+        audit_repo=audit_repo,
+        requesting_user=requesting_user,
+    )
     return APIResponse.html_response(
         template_name="posts/_message_sent.html",
-        context={"post": post},
+        context={
+            "post": sent.post,
+            "connection": sent.connection,
+            "newly_connected": sent.newly_connected,
+        },
         request=request,
         current_user=requesting_user,
     )
