@@ -1,20 +1,34 @@
-"""Bespoke read-only route for the `/admin/audit` page.
+"""Bespoke superuser-only admin routes.
 
-    GET /admin/audit    paginated audit log, superusers only
+    GET /admin/audit             paginated audit log
+    GET/POST /admin/data/...     Datasette: saved observability queries
 
-Derived read view over the framework-owned `audit_log` table — no
-stored admin resource, no writes, no `EntitySpec` (the audit log has no
-owner filter or CRUD face, so a bespoke handler is simpler than
-spec-driven mounting). `current_admin_user` 403s any non-superuser
-before the handler runs.
+`/admin/audit` is a derived read view over the framework-owned
+`audit_log` table — no stored admin resource, no writes, no
+`EntitySpec` (the audit log has no owner filter or CRUD face, so a
+bespoke handler is simpler than spec-driven mounting).
+
+`/admin/data/` hands the request to the admin's Datasette instance
+(`src/domain/logic/admin_data/`) after the same `current_admin_user`
+check — a route, not an `app.mount`, so auth stays the normal FastAPI
+dependency. Its only write is the "Add a note" query into `admin_notes`.
+
+`current_admin_user` 403s any non-superuser before a handler runs;
+anonymous browser requests ride the global 401 handler to the login
+page.
 
 Follows the bespoke-route pattern documented in
 `src/domain/routes/README.md § Bespoke routes`.
 """
 
 from fastapi import APIRouter, Depends, Request
+from starlette.types import ASGIApp
 
 from src.auth_config import current_admin_user
+from src.domain.logic.admin_data.datasette_app import (
+    DatasetteResponse,
+    get_admin_data_app,
+)
 from src.domain.models import User
 from src.framework.audit.repository import AuditRepository
 from src.framework.dispatch.pagination import offset_for, paginate, parse_page
@@ -44,4 +58,23 @@ async def get_audit_log(
         context={"rows": rows, "page_meta": page_meta},
         request=request,
         current_user=requesting_user,
+    )
+
+
+@admin_router.api_route(
+    "/data/{path:path}",
+    methods=["GET", "POST"],
+    name="admin:data",
+    include_in_schema=False,
+)
+async def admin_data(
+    path: str,
+    requesting_user: User = Depends(current_admin_user),
+    datasette_app: ASGIApp = Depends(get_admin_data_app),
+):
+    # `path` only exists to match the catch-all; Datasette routes off the
+    # full ASGI path (it strips its own `base_url`).
+    return DatasetteResponse(
+        datasette_app,
+        actor={"id": requesting_user.id.hex, "username": requesting_user.username},
     )

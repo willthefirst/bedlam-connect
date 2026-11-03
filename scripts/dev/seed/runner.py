@@ -44,7 +44,10 @@ from .rng import SeededRandom, deterministic_uuid
 # Tables that should NOT be seeded by the runner. `audit_log` lives
 # in `src/framework/audit/log.py` and is written by triggers/handlers
 # elsewhere — directly seeding rows would duplicate the audit trail
-# the rest of the seed already implicitly produces.
+# the rest of the seed already implicitly produces. (The
+# `post_connections` override does write its own `send_post_message`
+# audit rows — those are part of a connection's story, not a mutation
+# trail.)
 SKIP_TABLES: Final[frozenset[str]] = frozenset({"audit_log"})
 
 # Tables that need a second pass because their override depends on
@@ -61,6 +64,7 @@ POST_PASS_TABLES: Final[tuple[str, ...]] = (
     "opening_details",
     "intake_details",
     "post_connections",
+    "admin_notes",
 )
 
 # Generic-pathway row counts for tables that DON'T have an override.

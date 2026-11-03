@@ -39,6 +39,7 @@ The grammar fits resource-shaped CRUD. These stay hand-written. A hand-written *
 | `GET /users/me/access`, `GET /users/me/access/capabilities/{name}` | `access.py` | Derived read view — capability posture, no stored row. |
 | `GET /users/me/email/form` | `user_email.py` | Email field-cluster subresource form — self-only; surfaces verification status, hosts the unverified-viewer / post-resend inbox CTA, and the resend-verification action. |
 | `GET /admin/audit` | `admin.py` | Derived read view over the framework-owned audit log — superuser-only, paginated, no stored resource. |
+| `GET/POST /admin/data/{path}` | `admin.py` | Superuser-only catch-all that hands the request to the admin's Datasette (saved observability queries). A route rather than `app.mount` so auth stays the `current_admin_user` dependency — see [`../logic/admin_data/README.md`](../logic/admin_data/README.md). |
 | `GET /`, `GET /health` | `../../main.py` | Utility endpoints. |
 
 ## Tests

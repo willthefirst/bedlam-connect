@@ -1,0 +1,321 @@
+# Saved queries for the admin's Datasette at /admin/data/ — the
+# Observability spec in the launch plan. Daily queries (1–5) list each
+# case to act on, oldest first, hiding anything already logged; an empty
+# result means nothing to do. Weekly queries (6–7) show the hot spots;
+# drill-downs (8–10) explain one week, post, or person.
+#
+# Shared definitions live in SQL views (migration 37ea65ccbf12):
+# member_names, post_summaries, member_onboarding, connection_verdicts,
+# post_outcomes. `ago` / `when_at` / `week_label` are display helpers
+# from `sql_functions.py`. IDs are 32-char hex; parameter inputs also
+# accept the dashed UUID form.
+title: Bedlam Connect admin data
+description: >-
+  Run the daily queries each morning, top to bottom, and log what you do
+  and learn with "5. Add a note".
+databases:
+  bedlam:
+    queries:
+      new_connections:
+        title: 1. New connections
+        description: >-
+          Connections not yet marked reviewed. Look at the post and both
+          profiles for anything off (wrong state, identifying details), then
+          add a "reviewed" note for the connection.
+        sql: |-
+          select
+            sender.name || ' → ' || author.name as connection,
+            ps.title as on_post,
+            ago(pc.created_at) as made,
+            (
+              select count(*) from audit_log a
+              where a.action = 'send_post_message' and a.resource_id = pc.id
+            ) as messages,
+            pc.id as id
+          from post_connections pc
+          join post_summaries ps on ps.post_id = pc.post_id
+          join member_names sender on sender.user_id = pc.user_id
+          join member_names author on author.user_id = ps.owner_id
+          where not exists (
+            select 1 from admin_notes n
+            where n.subject_type = 'connection'
+              and n.subject_id = pc.id
+              and n.action = 'reviewed'
+          )
+          order by pc.created_at
+
+      check_ins_due:
+        title: 2. Check-ins due
+        description: >-
+          Connections made 2+ days ago with no check-in logged. Email the
+          post author with the check-in template, log "check_in_sent", then
+          log their reply ("check_in_reply": yes / not_yet / no) and a
+          "verdict" (good / not_good). A row stays until a check-in is
+          logged.
+        sql: |-
+          select
+            author.name || ', ' || author.email as post_author,
+            sender.name || ', ' || sender.email as reached_out,
+            ps.title as on_post,
+            ago(pc.created_at) as made,
+            pc.id as id
+          from post_connections pc
+          join post_summaries ps on ps.post_id = pc.post_id
+          join member_names sender on sender.user_id = pc.user_id
+          join member_names author on author.user_id = ps.owner_id
+          where julianday('now') - julianday(pc.created_at) >= 2
+            and not exists (
+              select 1 from admin_notes n
+              where n.subject_type = 'connection'
+                and n.subject_id = pc.id
+                and n.action = 'check_in_sent'
+            )
+          order by pc.created_at
+
+      posts_without_connections:
+        title: 3. Posts with no connection yet
+        description: >-
+          Posts up for a day or more that nobody has reached out about.
+          Mark one reviewed once you've looked into it.
+        sql: |-
+          select
+            ps.title as post,
+            author.name as author,
+            ago(ps.created_at) as posted,
+            ps.post_id as id
+          from post_summaries ps
+          join member_names author on author.user_id = ps.owner_id
+          where julianday('now') - julianday(ps.created_at) >= 1
+            and not exists (
+              select 1 from post_connections pc where pc.post_id = ps.post_id
+            )
+            and not exists (
+              select 1 from admin_notes n
+              where n.subject_type = 'post'
+                and n.subject_id = ps.post_id
+                and n.action = 'reviewed'
+            )
+          order by ps.created_at
+
+      members_not_started:
+        title: 4. Members who haven't started
+        description: >-
+          Members who haven't finished onboarding, or onboarded but haven't
+          posted or reached out. Mark one reviewed once you've followed up.
+        sql: |-
+          select
+            mn.name as member,
+            case mo.next_step
+              when 'verify_email' then 'Email not verified'
+              when 'verify_identity' then 'Identity not verified'
+              else 'Onboarded, no post or reach-out'
+            end as stuck_at,
+            ago(mo.signed_up_at) as signed_up,
+            mn.email as email,
+            mo.user_id as id
+          from member_onboarding mo
+          join member_names mn on mn.user_id = mo.user_id
+          where mo.status in ('not_onboarded', 'onboarded_inactive')
+            and not exists (
+              select 1 from admin_notes n
+              where n.subject_type = 'member'
+                and n.subject_id = mo.user_id
+                and n.action = 'reviewed'
+            )
+          order by mo.signed_up_at
+
+      add_note:
+        title: 5. Add a note
+        description: >-
+          The one query that writes. subject_type: connection, post, or
+          member. subject_id: the ID from a result row. action: reviewed,
+          check_in_sent, check_in_reply, or verdict. value: yes / not_yet /
+          no for a check-in reply, good / not_good for a verdict, blank
+          otherwise. note: what you learned. Example: connection, <id>,
+          verdict, not_good, "Client had Blue Shield."
+        write: true
+        on_success_message: Note added.
+        sql: |-
+          insert into admin_notes (id, subject_type, subject_id, action, value, note, author_id)
+          values (
+            :_random_chars_32,
+            lower(trim(:subject_type)),
+            lower(replace(trim(:subject_id), '-', '')),
+            lower(replace(trim(:action), ' ', '_')),
+            nullif(lower(replace(trim(:value), ' ', '_')), ''),
+            nullif(trim(:note), ''),
+            :_actor_id
+          )
+
+      weekly_health:
+        title: 6. Weekly health
+        description: >-
+          Post outcomes for the last 4 weeks, by week posted. The goal: 70%
+          or more "good" (share of decided posts, waiting excluded) for 4
+          weeks in a row. Look for the biggest bad column, or one that grows
+          week over week, then drill in with "8. Posts by outcome" (its week
+          is the date at the start of the week column).
+        sql: |-
+          select
+            po.week_posted || ' · ' || week_label(po.week_posted) as week,
+            sum(po.outcome = 'good') as good,
+            sum(po.outcome = 'not_fit') as not_a_fit,
+            sum(po.outcome = 'none') as no_connections,
+            sum(po.outcome = 'waiting') as waiting,
+            case
+              when sum(po.outcome <> 'waiting') = 0 then '—'
+              else cast(round(100.0 * sum(po.outcome = 'good') / sum(po.outcome <> 'waiting')) as integer)
+                || '%, '
+                || case
+                  when 100.0 * sum(po.outcome = 'good') / sum(po.outcome <> 'waiting') >= 70
+                    then 'on goal'
+                  else 'below goal'
+                end
+            end as share_good
+          from post_outcomes po
+          where julianday(po.week_posted) >= julianday(date('now', '-6 days', 'weekday 1', '-21 days'))
+          group by po.week_posted
+          order by po.week_posted desc
+
+      member_outcomes:
+        title: 7. Member outcomes
+        description: Members who joined in the last 4 weeks, by week joined.
+        sql: |-
+          select
+            date(mo.signed_up_at, '-6 days', 'weekday 1') || ' · '
+              || week_label(date(mo.signed_up_at, '-6 days', 'weekday 1')) as week_joined,
+            count(*) as joined,
+            sum(mo.status = 'not_onboarded') as didnt_finish_onboarding,
+            sum(mo.status = 'onboarded_inactive') as onboarded_no_activity,
+            sum(mo.status = 'active') as active
+          from member_onboarding mo
+          where julianday(mo.signed_up_at) >= julianday(date('now', '-6 days', 'weekday 1', '-21 days'))
+          group by date(mo.signed_up_at, '-6 days', 'weekday 1')
+          order by date(mo.signed_up_at, '-6 days', 'weekday 1') desc
+
+      posts_by_outcome:
+        title: 8. Posts by outcome
+        description: >-
+          One week's posts with one outcome. week: the date from "6. Weekly
+          health" (e.g. 2026-10-26). outcome: good, not_fit, none, or
+          waiting.
+        sql: |-
+          select
+            ps.title as post,
+            author.name as author,
+            ago(ps.created_at) as posted,
+            (select count(*) from post_connections pc where pc.post_id = ps.post_id) as connections,
+            (
+              select coalesce(replace(n.value, '_', ' ') || ': ', '') || coalesce(n.note, replace(n.action, '_', ' '))
+              from admin_notes n
+              where (n.subject_type = 'post' and n.subject_id = ps.post_id)
+                 or (
+                   n.subject_type = 'connection'
+                   and n.subject_id in (select pc.id from post_connections pc where pc.post_id = ps.post_id)
+                 )
+              order by n.created_at desc, n.rowid desc
+              limit 1
+            ) as latest_note,
+            ps.post_id as id
+          from post_outcomes po
+          join post_summaries ps on ps.post_id = po.post_id
+          join member_names author on author.user_id = ps.owner_id
+          where po.week_posted = substr(trim(:week), 1, 10)
+            and po.outcome = lower(replace(trim(:outcome), ' ', '_'))
+          order by ps.created_at
+
+      post_timeline:
+        title: 9. Post timeline
+        description: "Everything about one post, oldest first. post_id: the post's ID."
+        sql: |-
+          with target as (
+            select lower(replace(trim(:post_id), '-', '')) as id
+          ),
+          events as (
+            select p.created_at as at, 'Posted' as what, p.owner_id as who_id
+            from posts p, target where p.id = target.id
+            union all
+            select pc.created_at, 'Connection', pc.user_id
+            from post_connections pc, target where pc.post_id = target.id
+            union all
+            select a.created_at, 'Message sent', a.actor_id
+            from audit_log a
+            join post_connections pc on pc.id = a.resource_id, target
+            where a.action = 'send_post_message' and pc.post_id = target.id
+            union all
+            select
+              n.created_at,
+              case n.action
+                when 'reviewed' then 'Reviewed'
+                when 'check_in_sent' then 'Check-in sent'
+                when 'check_in_reply' then 'Check-in reply'
+                when 'verdict' then 'Verdict'
+              end
+                || coalesce(': ' || replace(n.value, '_', ' '), '')
+                || coalesce('. "' || n.note || '"', ''),
+              n.author_id
+            from admin_notes n, target
+            where (n.subject_type = 'post' and n.subject_id = target.id)
+               or (
+                 n.subject_type = 'connection'
+                 and n.subject_id in (select pc.id from post_connections pc where pc.post_id = target.id)
+               )
+          )
+          select
+            when_at(e.at) as "when",
+            e.what as what_happened,
+            coalesce(mn.name, 'system') as who
+          from events e
+          left join member_names mn on mn.user_id = e.who_id
+          order by julianday(e.at)
+
+      member_timeline:
+        title: 10. Member timeline
+        description: "Everything about one person, oldest first. member_id: the member's ID."
+        sql: |-
+          with target as (
+            select lower(replace(trim(:member_id), '-', '')) as id
+          ),
+          events as (
+            select u.created_at as at, 'Signed up' as what, u.id as who_id
+            from users u, target where u.id = target.id
+            union all
+            select c.verified_at, 'Identity verified', c.owner_id
+            from clinicians c, target
+            where c.owner_id = target.id and c.verified_at is not null
+            union all
+            select ps.created_at, 'Posted: ' || ps.title, ps.owner_id
+            from post_summaries ps, target where ps.owner_id = target.id
+            union all
+            select pc.created_at, 'Reached out: ' || ps.title, pc.user_id
+            from post_connections pc
+            join post_summaries ps on ps.post_id = pc.post_id, target
+            where pc.user_id = target.id
+            union all
+            select a.created_at, 'Message sent: ' || ps.title, a.actor_id
+            from audit_log a
+            join post_connections pc on pc.id = a.resource_id
+            join post_summaries ps on ps.post_id = pc.post_id, target
+            where a.action = 'send_post_message' and a.actor_id = target.id
+            union all
+            select
+              n.created_at,
+              case n.action
+                when 'reviewed' then 'Reviewed'
+                when 'check_in_sent' then 'Check-in sent'
+                when 'check_in_reply' then 'Check-in reply'
+                when 'verdict' then 'Verdict'
+              end
+                || coalesce(': ' || replace(n.value, '_', ' '), '')
+                || coalesce('. "' || n.note || '"', ''),
+              n.author_id
+            from admin_notes n, target
+            where n.subject_type = 'member' and n.subject_id = target.id
+          )
+          select
+            when_at(e.at) as "when",
+            e.what as what_happened,
+            coalesce(mn.name, 'system') as who
+          from events e
+          left join member_names mn on mn.user_id = e.who_id
+          order by julianday(e.at)
