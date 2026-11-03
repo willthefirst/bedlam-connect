@@ -1144,8 +1144,8 @@ async def test_home_anonymous_returns_landing_page(test_client: AsyncClient):
 async def test_root_authenticated_redirects_to_referral_board(
     authenticated_client: AsyncClient,
 ):
-    """Authenticated GET / redirects to the referral board, defaulting to
-    California (`/posts?kind=referral&state=CA`) — the signed-in "home"."""
+    """Authenticated GET / redirects to the referral board, with no
+    default filters (`/posts?kind=referral`) — the signed-in "home"."""
     response = await authenticated_client.get("/", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "/posts?kind=referral&state=CA"
+    assert response.headers["location"] == "/posts?kind=referral"
