@@ -40,6 +40,15 @@ the spam score down at deliverability-strict providers. Callers
 render both from the same template pair (see
 `src/domain/templates/emails/`).
 
+Every link in an email body is built with `absolute_url(path)` (in
+[`links.py`](links.py)), which joins `settings.APP_BASE_URL` with an app
+path. Email clients have no page to resolve a relative `href` against —
+Gmail silently repairs a scheme-less one, other clients resolve it
+against their own domain and 404 — so `APP_BASE_URL` is validated at
+boot in [`config.py`](../config.py) (scheme required) and every rendered
+link is pinned absolute by
+[`templates/emails/test_links.py`](../../domain/templates/emails/test_links.py).
+
 `reply_to` is the optional address a recipient's "Reply" goes to
 when it differs from the sending `EMAIL_FROM` address (e.g. an
 in-app message-the-poster flow where the conversation should
