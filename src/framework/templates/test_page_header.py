@@ -259,7 +259,8 @@ def test_avatar_menu_items_are_my_posts_account_sign_out() -> None:
 
 
 def test_avatar_menu_shows_audit_log_for_admins_only() -> None:
-    """Superusers get an Audit log item (→ `/admin/audit`) between
+    """Superusers get Audit log (→ `/admin/audit`) and Admin data
+    (→ `/admin/data/`, the Datasette observability queries) between
     Account and Sign out. The gate is the `is_admin` chrome scalar from
     `base_context`, which a handler cannot override — so the item can
     never render for a non-admin (whose exact item set is pinned by
@@ -272,10 +273,11 @@ def test_avatar_menu_shows_audit_log_for_admins_only() -> None:
     assert menu is not None
     items = menu.css("ul li a")
     labels = [a.text(strip=True) for a in items]
-    assert labels == ["My posts", "Account", "Audit log", "Sign out"]
+    assert labels == ["My posts", "Account", "Audit log", "Admin data", "Sign out"]
 
     by_label = {a.text(strip=True): a for a in items}
     assert by_label["Audit log"].attributes.get("href") == "/admin/audit"
+    assert by_label["Admin data"].attributes.get("href") == "/admin/data/"
 
 
 def test_anonymous_nav_is_brand_only() -> None:

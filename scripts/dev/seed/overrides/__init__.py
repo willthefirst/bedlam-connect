@@ -47,6 +47,7 @@ def register(model: type[BaseModel]):
 
 # Import side effects: each module @register's against OVERRIDES.
 from . import (  # noqa: E402,F401
+    admin_notes,
     clinicians,
     credentials,
     favorites,
