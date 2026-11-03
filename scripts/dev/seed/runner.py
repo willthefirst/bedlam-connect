@@ -51,13 +51,16 @@ SKIP_TABLES: Final[frozenset[str]] = frozenset({"audit_log"})
 # rows that `metadata.sorted_tables` doesn't FK-order against them.
 # `posts` has no FK to `clinicians` or `programs`, but its `OpeningDetail`
 # / `IntakeDetail` children do — so the Post override has to run AFTER
-# everything else, not in FK-topological order. Listed in the order
-# the post-pass should execute.
+# everything else, not in FK-topological order. Any table whose
+# override reads seeded posts from the pool (e.g. `post_connections`)
+# must follow `posts` here. Listed in the order the post-pass should
+# execute.
 POST_PASS_TABLES: Final[tuple[str, ...]] = (
     "posts",
     "referral_details",
     "opening_details",
     "intake_details",
+    "post_connections",
 )
 
 # Generic-pathway row counts for tables that DON'T have an override.
@@ -127,9 +130,8 @@ async def seed_all() -> int:
                 continue
             total += await _seed_table(table.name, rng, pool, session)
         # Phase 2: deferred tables whose override depends on rows the
-        # FK graph doesn't force-order against them. Currently only
-        # `posts` + its details (the Post override builds details inline
-        # and they FK back to clinicians/programs).
+        # FK graph doesn't force-order against them — anything that
+        # needs seeded posts in the pool (see `POST_PASS_TABLES`).
         for table_name in POST_PASS_TABLES:
             total += await _seed_table(table_name, rng, pool, session)
     print(

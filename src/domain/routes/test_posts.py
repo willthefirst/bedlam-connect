@@ -1787,7 +1787,9 @@ async def test_message_send_unverified_user_is_forbidden(
     so the route must also reject the request server-side. Mirrors the
     `can_act_as_provider` gate that hid the prior `mailto:` button."""
     send_mock = pytest.importorskip("unittest.mock").AsyncMock()
-    monkeypatch.setattr("src.domain.routes.posts.send_post_message_email", send_mock)
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", send_mock
+    )
 
     author = create_test_user(username=f"author-{uuid.uuid4()}")
     post = _referral_post(owner_id=author.id)
@@ -1817,7 +1819,9 @@ async def test_message_send_verified_user_dispatches_email(
     from unittest.mock import AsyncMock
 
     send_mock = AsyncMock()
-    monkeypatch.setattr("src.domain.routes.posts.send_post_message_email", send_mock)
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", send_mock
+    )
 
     clinician = make_clinician_with_org(owner_id=logged_in_user.id, npi="1234567890")
     clinician.npi_match_status = "matched"
@@ -1855,7 +1859,9 @@ async def test_message_send_404_when_post_missing(
     from unittest.mock import AsyncMock
 
     send_mock = AsyncMock()
-    monkeypatch.setattr("src.domain.routes.posts.send_post_message_email", send_mock)
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", send_mock
+    )
 
     clinician = make_clinician_with_org(owner_id=logged_in_user.id, npi="1234567890")
     clinician.npi_match_status = "matched"
@@ -1882,7 +1888,9 @@ async def test_message_send_rejects_blank_body(
     from unittest.mock import AsyncMock
 
     send_mock = AsyncMock()
-    monkeypatch.setattr("src.domain.routes.posts.send_post_message_email", send_mock)
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", send_mock
+    )
 
     clinician = make_clinician_with_org(owner_id=logged_in_user.id, npi="1234567890")
     clinician.npi_match_status = "matched"
@@ -1900,3 +1908,111 @@ async def test_message_send_rejects_blank_body(
     )
     assert response.status_code == 422
     assert send_mock.call_count == 0
+
+
+# --- Post connections (#775) -------------------------------------------------
+
+
+def _verified_sender_clinician(owner_id) -> Clinician:
+    clinician = make_clinician_with_org(owner_id=owner_id, npi="1234567890")
+    clinician.npi_match_status = "matched"
+    clinician.clinician_verified = True
+    return clinician
+
+
+async def test_message_send_own_post_is_forbidden(
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+    monkeypatch,
+):
+    """The panel is hidden on your own post, but a crafted request must
+    also be refused server-side — an author can't connect to themself."""
+    from unittest.mock import AsyncMock
+
+    send_mock = AsyncMock()
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", send_mock
+    )
+    post = _referral_post(owner_id=logged_in_user.id)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add(_verified_sender_clinician(logged_in_user.id))
+            session.add(post)
+
+    response = await authenticated_client.post(
+        f"/posts/{post.id}/message", json={"body": "hi me"}
+    )
+    assert response.status_code == 403
+    assert send_mock.call_count == 0
+
+
+async def test_message_send_announces_connection_only_the_first_time(
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+    monkeypatch,
+):
+    """The first message flips the sender to Connected; a repeat send
+    doesn't re-announce it (the panel already shows the Connected line
+    above the form for an existing edge)."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", AsyncMock()
+    )
+    author = create_test_user(username=f"author-{uuid.uuid4()}")
+    post = _referral_post(owner_id=author.id)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add(_verified_sender_clinician(logged_in_user.id))
+            session.add(author)
+            session.add(post)
+
+    first = await authenticated_client.post(
+        f"/posts/{post.id}/message", json={"body": "hello"}
+    )
+    assert first.status_code == 200
+    assert HTMLParser(first.text).css_first("[data-row-id='connected']") is not None
+
+    second = await authenticated_client.post(
+        f"/posts/{post.id}/message", json={"body": "hello again"}
+    )
+    assert second.status_code == 200
+    assert "Message sent" in second.text
+    assert HTMLParser(second.text).css_first("[data-row-id='connected']") is None
+
+
+async def test_detail_shows_connected_state_only_when_connected(
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+    monkeypatch,
+):
+    """The relationship, not the click, is the source of truth: after a
+    message, every later view of the post shows Connected, and the form
+    stays so the sender can write again."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.domain.logic.posts.handlers.send_post_message_email", AsyncMock()
+    )
+    author = create_test_user(username=f"author-{uuid.uuid4()}")
+    post = _referral_post(owner_id=author.id)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add(_verified_sender_clinician(logged_in_user.id))
+            session.add(author)
+            session.add(post)
+
+    before = HTMLParser((await authenticated_client.get(f"/posts/{post.id}")).text)
+    assert before.css_first("[data-row-id='connected']") is None
+
+    await authenticated_client.post(f"/posts/{post.id}/message", json={"body": "hi"})
+
+    after = HTMLParser((await authenticated_client.get(f"/posts/{post.id}")).text)
+    panel = after.css_first("article[data-row-id='connect-panel']")
+    connected = panel.css_first("[data-row-id='connected']")
+    assert connected is not None
+    assert connected.text().startswith("Connected · ")
+    assert panel.css_first(f"form[hx-post='/posts/{post.id}/message']") is not None
