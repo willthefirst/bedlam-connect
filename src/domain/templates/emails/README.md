@@ -33,7 +33,15 @@ embed untrusted attribute-shaped content.
 
 ## Where these are rendered
 
-Domain wrappers in [`src/domain/logic/auth/emails.py`](../../logic/auth/emails.py)
-render both parts of a pair, then hand off to the framework's
-`send_email`. Hooks in `src.auth_config.UserManager` call those
-wrappers — never `_render` or `send_email` directly.
+Domain wrappers in `src/domain/logic/<entity>/emails.py` render both
+parts of a pair, then hand off to the framework's `send_email`. Callers
+(fastapi-users hooks in `src.auth_config.UserManager`, route handlers)
+call those wrappers — never `_render` or `send_email` directly.
+
+## Links must be absolute
+
+Every link a template renders comes from the framework's `absolute_url`
+(see [`src/framework/email/README.md`](../../../framework/email/README.md))
+— never a hand-written `href="/..."`. [`test_links.py`](test_links.py)
+renders every template here through its real wrapper and fails on any
+non-absolute link, and a new template without a case there fails too.

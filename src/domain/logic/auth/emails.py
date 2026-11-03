@@ -16,17 +16,8 @@ here, not a hook-body rewrite.
 from __future__ import annotations
 
 from src.domain.models import User
-from src.framework.config import settings
-from src.framework.email import send_email
+from src.framework.email import absolute_url, send_email
 from src.framework.rendering.templating import templates
-
-
-def _absolute_url(path: str) -> str:
-    """Join `APP_BASE_URL` with a path. Strip trailing/leading slashes
-    to avoid `//` collisions when `APP_BASE_URL` is set with a trailing
-    slash in `.env`."""
-    base = settings.APP_BASE_URL.rstrip("/")
-    return f"{base}/{path.lstrip('/')}"
 
 
 def _render(template_name: str, **context: object) -> str:
@@ -48,7 +39,7 @@ async def send_verification_email(user: User, token: str) -> None:
     them in. GET deliberately does NOT mutate — see
     `auth_pages.py:get_verify_page` for why (link prefetchers).
     """
-    verify_url = _absolute_url(f"/auth/verify?token={token}")
+    verify_url = absolute_url(f"/auth/verify?token={token}")
     context = {
         "username": user.username,
         "verify_url": verify_url,
@@ -69,7 +60,7 @@ async def send_password_reset_email(user: User, token: str) -> None:
     the user submits the form on `/auth/reset-password/{token}`. Link
     shape must match the GET page route in `auth_pages.py`.
     """
-    reset_url = _absolute_url(f"/auth/reset-password/{token}")
+    reset_url = absolute_url(f"/auth/reset-password/{token}")
     context = {
         "username": user.username,
         "reset_url": reset_url,

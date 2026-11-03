@@ -114,7 +114,7 @@ async def test_email_includes_absolute_post_url(monkeypatch):
     (`APP_BASE_URL` + `/posts/{id}`) — email clients can't resolve
     relative paths since they aren't running in the request scope."""
     monkeypatch.setattr(
-        "src.domain.logic.posts.emails.settings.APP_BASE_URL",
+        "src.framework.email.links.settings.APP_BASE_URL",
         "https://app.example.com",
     )
     send_email_mock = AsyncMock()
@@ -155,7 +155,7 @@ async def test_post_headline_is_the_hyperlinked_subject(monkeypatch):
     """The post's derived headline (`post_feed_headline`) is the subject
     line and is hyperlinked to the post in the HTML part."""
     monkeypatch.setattr(
-        "src.domain.logic.posts.emails.settings.APP_BASE_URL",
+        "src.framework.email.links.settings.APP_BASE_URL",
         "https://app.example.com",
     )
     send_email_mock = AsyncMock()

@@ -3,6 +3,9 @@
 import os
 from unittest.mock import patch
 
+import pytest
+from pydantic import ValidationError
+
 from .config import Settings
 
 
@@ -40,3 +43,59 @@ def test_observability_defaults_are_quota_safe():
         assert settings.SENTRY_REPLAY_SAMPLE_RATE == 0.0
         assert settings.SENTRY_REPLAY_ON_ERROR_SAMPLE_RATE == 0.0
         assert settings.APP_RELEASE == ""
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "www.bedlamconnect.com",  # the #1614 prod value
+        "bedlamconnect.com/",
+        "//bedlamconnect.com",
+        "ftp://bedlamconnect.com",
+        "https://",
+    ],
+)
+def test_app_base_url_without_http_scheme_and_host_refuses_to_boot(value):
+    """A scheme-less base renders email links as relative `href`s —
+    Gmail silently repairs them, Resend's viewer and stricter clients
+    resolve them against their own domain and 404 (#1614). Failing at
+    boot turns a bad deploy secret into a failed health check."""
+    with patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(ValidationError, match="APP_BASE_URL must be an absolute"):
+            Settings(
+                SECRET="test", DATABASE_URL="postgresql://test", APP_BASE_URL=value
+            )
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("https://www.bedlamconnect.com", "https://www.bedlamconnect.com"),
+        ("https://www.bedlamconnect.com/", "https://www.bedlamconnect.com"),
+        ("http://localhost:8000", "http://localhost:8000"),
+    ],
+)
+def test_app_base_url_accepts_absolute_urls_and_strips_trailing_slash(value, expected):
+    """Trailing slash is stripped here so link builders join with a
+    single `/` — no `//auth/...` from a `.env` value ending in `/`."""
+    with patch.dict(os.environ, {}, clear=True):
+        settings = Settings(
+            SECRET="test", DATABASE_URL="postgresql://test", APP_BASE_URL=value
+        )
+        assert settings.APP_BASE_URL == expected
+
+
+def test_app_base_url_default_is_valid():
+    with patch.dict(os.environ, {}, clear=True):
+        settings = Settings(SECRET="test", DATABASE_URL="postgresql://test")
+        assert settings.APP_BASE_URL == "http://localhost:8000"
+
+
+def test_missing_required_field_reports_from_the_validation_error():
+    """The friendly "missing variables" message names the fields the
+    validation error reports as missing, not fields absent from
+    `os.environ` but supplied another way (kwargs, `.env`)."""
+    with patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(ValueError, match="- SECRET") as exc_info:
+            Settings(DATABASE_URL="postgresql://test", _env_file=None)
+        assert "DATABASE_URL" not in str(exc_info.value)
