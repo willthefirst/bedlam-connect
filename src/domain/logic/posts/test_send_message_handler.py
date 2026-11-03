@@ -5,7 +5,9 @@ Pins the load-bearing invariants:
 
 - **First message creates the edge, once.** One `PostConnection` row and
   one `add_post_connection` audit row; later messages reuse the edge,
-  write no audit row, and still send the email.
+  write no second `add_post_connection` row, and still send the email.
+- **Every send is countable.** One `send_post_message` event row per
+  message, first or repeat, against the connection.
 - **The body is never persisted.** Neither the edge nor its audit
   snapshot carries the message text.
 - **No edge without a sent message.** The commit follows the email, so
@@ -132,6 +134,36 @@ async def test_repeat_message_reuses_edge_without_audit(
     assert send_mock.call_count == 2
 
 
+async def _send_events(db_test_session_manager) -> list[AuditLog]:
+    async with db_test_session_manager() as session:
+        result = await session.execute(
+            select(AuditLog)
+            .filter(AuditLog.action == AuditAction.SEND_POST_MESSAGE)
+            .order_by(AuditLog.created_at)
+        )
+        return list(result.scalars().all())
+
+
+async def test_every_send_writes_a_message_event(db_test_session_manager, send_mock):
+    """Repeat messages leave no new edge but each one is countable: one
+    `send_post_message` row per send, against the connection, with no
+    snapshot (nothing mutated, and the body is never stored)."""
+    sender, _, post = await _seed(db_test_session_manager)
+
+    first = await _send(db_test_session_manager, post_id=post.id, user=sender)
+    await _send(db_test_session_manager, post_id=post.id, user=sender)
+    await _send(db_test_session_manager, post_id=post.id, user=sender)
+
+    events = await _send_events(db_test_session_manager)
+    assert len(events) == 3
+    for event in events:
+        assert event.resource_type == "post_connection"
+        assert event.resource_id == first.connection.id
+        assert event.actor_id == sender.id
+        assert event.before is None
+        assert event.after is None
+
+
 async def test_body_is_not_persisted(db_test_session_manager, send_mock):
     sender, _, post = await _seed(db_test_session_manager)
 
@@ -151,6 +183,7 @@ async def test_failed_send_records_no_edge(db_test_session_manager, send_mock):
 
     assert await _connections(db_test_session_manager, sender.id) == []
     assert await _connection_audits(db_test_session_manager) == []
+    assert await _send_events(db_test_session_manager) == []
 
 
 async def test_author_cannot_message_own_post(db_test_session_manager, send_mock):
