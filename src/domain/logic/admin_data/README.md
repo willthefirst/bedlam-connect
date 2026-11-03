@@ -17,6 +17,12 @@ Connections are `post_connections` rows; every message sent is a `send_post_mess
 
 [`sql_functions.py`](sql_functions.py) registers display helpers (`ago`, `when_at`, `week_label`) on Datasette's connections — Pacific-time relative ages instead of raw UTC text. Views don't use them, so the views stay queryable from a plain `sqlite3` shell.
 
+## Dashboards
+
+Charts and number tiles come from the `datasette-dashboards` plugin, configured under `plugins:` in the same `metadata.yaml` and served at `/admin/data/-/dashboards` (Datasette's menu links it). Each chart is SQL plus a Vega-Lite spec; the plugin bundles Vega, so nothing loads from a CDN. Charts read the shared views — they never restate a daily query's to-do logic, since the daily queries *are* the to-do lists.
+
+**Never give a dashboard filter a `default:`.** The plugin then redirects a bare visit to `?<filter>=<default>` and copies every request cookie onto the redirect through Datasette's `set_cookie`, which reissues our session cookie without HttpOnly/Secure. [`test_dashboard.py`](test_dashboard.py) fails on any default, and the route test asserts the dashboard sets no cookies.
+
 ## Tests
 
 Colocated. They run against a migrated temp *file* DB (`migrate_sqlite_file` in [`../../../../tests/helpers.py`](../../../../tests/helpers.py)) because the default in-memory test DB has no views and Datasette can't open it. [`test_queries.py`](test_queries.py) runs each saved query's SQL straight from `metadata.yaml`; the route-level auth ladder and the end-to-end "Add a note" POST live in [`../../routes/test_admin_data.py`](../../routes/test_admin_data.py).
