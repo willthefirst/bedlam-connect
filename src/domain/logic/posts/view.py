@@ -49,11 +49,22 @@ browse list views: client demographics for referrals, the practice's org
 name for openings, the program name for intakes (the clinical detail
 trails as a separate `service_labels` fact row, not in the title).
 
+`affiliation_options(user, current)` / `program_options(user, current)`
+build the practice / program picker options for the post create + edit
+forms. The caller passes the *post's owner* on edit (``current_user`` on
+create, where the submitter becomes the owner) — never the viewer, so a
+superuser editing someone else's post sees that owner's practices, not
+their own. ``current`` (the post's linked affiliation / program) is
+appended when the owner's list doesn't already contain it: an org rep
+may post under an affiliated clinician they don't own, and the picker
+must not silently re-point such a post on save.
+
 All helpers are exposed as Jinja globals by
 `src/framework/rendering/templating.py`.
 """
 
 from typing import Any
+from uuid import UUID
 
 from src.domain.models.enums import (
     CLIENT_AGE_GROUP_LABELS_SINGULAR,
@@ -775,3 +786,31 @@ def post_feed_headline(post) -> str:
         return (getattr(prog, "name", None) if prog else None) or "Program"
 
     return ""
+
+
+def _affiliation_label(aff) -> str:
+    """Person first, org as disambiguator when present — "Jane Smith" or
+    "Jane Smith · Acme Counseling"."""
+    c = aff.clinician
+    name = f"{c.first_name or ''} {c.last_name or ''}".strip()
+    return f"{name} · {aff.org.name}" if aff.org else name
+
+
+def affiliation_options(user, current=None) -> list[tuple[UUID, str]]:
+    """`(affiliation_id, label)` options for the referral / opening
+    practice picker — every affiliation of every clinician ``user`` owns,
+    plus ``current`` when it isn't among them. See the module docstring
+    for why ``user`` is the post's owner, not the viewer."""
+    affs = [aff for c in user.clinicians for aff in c.clinician_affiliations]
+    if current is not None and all(a.id != current.id for a in affs):
+        affs.append(current)
+    return [(aff.id, _affiliation_label(aff)) for aff in affs]
+
+
+def program_options(user, current=None) -> list[tuple[UUID, str]]:
+    """`(program_id, "<Program> · <Org>")` options for the program-intake
+    picker — ``user``'s programs plus ``current`` when absent."""
+    programs = list(user.programs)
+    if current is not None and all(p.id != current.id for p in programs):
+        programs.append(current)
+    return [(p.id, f"{p.name} · {p.organization.name}") for p in programs]

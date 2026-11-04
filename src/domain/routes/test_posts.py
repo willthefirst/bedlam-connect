@@ -2016,3 +2016,125 @@ async def test_detail_shows_connected_state_only_when_connected(
     assert connected is not None
     assert connected.text().startswith("Connected · ")
     assert panel.css_first(f"form[hx-post='/posts/{post.id}/message']") is not None
+
+
+# --- Edit-form picker: options come from the post's owner -----------------
+
+
+def _post_on_affiliation(kind: str, *, owner_id, clinician: Clinician) -> Post:
+    """A `kind` post whose practice picker points at ``clinician``'s
+    first affiliation."""
+    aff = clinician.clinician_affiliations[0]
+    post = Post(kind=kind, owner_id=owner_id)
+    if kind == "referral":
+        detail = make_referral_detail()
+        detail.referring_clinician = clinician
+    else:
+        detail = make_opening_detail(clinician_id=clinician.id)
+        detail.clinician = clinician
+    detail.clinician_affiliation = aff
+    setattr(post, f"{'referral' if kind == 'referral' else 'opening'}_detail", detail)
+    return post
+
+
+def _picker_values(html: str, field: str) -> set[str]:
+    select = HTMLParser(html).css_first(f'select[name="{field}"]')
+    assert select is not None
+    return {o.attributes.get("value") for o in select.css("option")}
+
+
+@pytest.mark.parametrize("kind", ["referral", "clinician_opening"])
+async def test_admin_edit_form_lists_owner_practices_not_admins(
+    kind: str,
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+):
+    """A superuser editing someone else's post sees the *owner's*
+    practices in the picker — never their own. Before the fix the
+    picker iterated `current_user.clinicians`, so an admin with no
+    clinicians saw an empty dropdown and one with clinicians was
+    offered their own practices (re-pointing the post on save)."""
+    await promote_to_admin(db_test_session_manager, logged_in_user.email)
+    admin_clinician = make_clinician_with_org(
+        owner_id=logged_in_user.id, practice_name="Admin Practice"
+    )
+    owner = create_test_user(username=f"owner-{uuid.uuid4()}")
+    owner_clinician = make_clinician_with_org(
+        owner_id=owner.id, practice_name="Owner Practice"
+    )
+    owner_clinician.id = uuid.uuid4()
+    post = _post_on_affiliation(kind, owner_id=owner.id, clinician=owner_clinician)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add_all([admin_clinician, owner, owner_clinician, post])
+
+    response = await authenticated_client.get(f"/posts/{post.id}/form")
+    assert response.status_code == 200
+    values = _picker_values(response.text, _CLINICIAN_FIELD[kind])
+    assert str(owner_clinician.clinician_affiliations[0].id) in values
+    assert str(admin_clinician.clinician_affiliations[0].id) not in values
+
+
+@pytest.mark.parametrize("kind", ["referral", "clinician_opening"])
+async def test_edit_form_keeps_current_practice_owner_does_not_own(
+    kind: str,
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+):
+    """An org rep can post under an affiliated clinician they don't own
+    (Claim B path). The edit picker must still offer — and select — the
+    post's current practice, so saving doesn't silently re-point it."""
+    other = create_test_user(username=f"other-{uuid.uuid4()}")
+    foreign_clinician = make_clinician_with_org(
+        owner_id=other.id, practice_name="Group Practice"
+    )
+    foreign_clinician.id = uuid.uuid4()
+    post = _post_on_affiliation(
+        kind, owner_id=logged_in_user.id, clinician=foreign_clinician
+    )
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add_all([other, foreign_clinician, post])
+
+    response = await authenticated_client.get(f"/posts/{post.id}/form")
+    assert response.status_code == 200
+    aff_id = str(foreign_clinician.clinician_affiliations[0].id)
+    select = HTMLParser(response.text).css_first(
+        f'select[name="{_CLINICIAN_FIELD[kind]}"]'
+    )
+    selected = [o for o in select.css("option") if "selected" in o.attributes]
+    assert [o.attributes.get("value") for o in selected] == [aff_id]
+
+
+async def test_admin_edit_intake_form_lists_owner_programs_not_admins(
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+):
+    """Same owner-not-viewer rule for the program-intake picker."""
+    await promote_to_admin(db_test_session_manager, logged_in_user.email)
+    admin_org = make_organization_row(owner_id=logged_in_user.id, name="Admin Org")
+    admin_program = make_program(
+        owner_id=logged_in_user.id, org_id=admin_org.id, name="Admin Program"
+    )
+    admin_program.id = uuid.uuid4()
+    owner = create_test_user(username=f"owner-{uuid.uuid4()}")
+    owner_org = make_organization_row(owner_id=owner.id, name="Owner Org")
+    owner_program = make_program(
+        owner_id=owner.id, org_id=owner_org.id, name="Owner Program"
+    )
+    owner_program.organization = owner_org
+    post = _intake_post(owner_id=owner.id, org_id=owner_org.id, program=owner_program)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add_all(
+                [admin_org, admin_program, owner, owner_org, owner_program, post]
+            )
+
+    response = await authenticated_client.get(f"/posts/{post.id}/form")
+    assert response.status_code == 200
+    values = _picker_values(response.text, "program_id")
+    assert str(owner_program.id) in values
+    assert str(admin_program.id) not in values
