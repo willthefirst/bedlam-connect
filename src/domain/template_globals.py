@@ -24,11 +24,13 @@ from src.domain.logic.posts.schema import (
 )
 from src.domain.logic.posts.sections import REFERRAL_SECTIONS
 from src.domain.logic.posts.view import (
+    affiliation_options,
     insurance_posture_for_post,
     location_summary,
     post_card_view,
     post_feed_headline,
     post_row_summary,
+    program_options,
     referral_headline,
     service_labels,
 )
@@ -138,6 +140,11 @@ register_template_globals(
     # `post_feed_headline(post)` — the feed row's base identity line
     # (demographics / practice / program name) for home and browse views.
     post_feed_headline=post_feed_headline,
+    # `affiliation_options` / `program_options` — the post forms' picker
+    # options, sourced from the post's owner (not the viewer). See
+    # `src.domain.logic.posts.view`.
+    affiliation_options=affiliation_options,
+    program_options=program_options,
     # `service_labels(view)` / `location_summary(view)` — the priority-sorted
     # service labels and the one-line location (state + in-person-where +
     # telehealth), shared by the feed row, list card, and referral detail so

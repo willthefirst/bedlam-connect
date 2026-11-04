@@ -43,18 +43,12 @@ override it.
      scrolled.) #}
   {%- call form_with_errors(action=action, method=hx_method) -%}
     <input type="hidden" name="kind" value="referral" />
-    {# Referring clinician picker — required; populated from the current
-       user's owned clinicians' affiliations. Mirrors the PA form's
-       practice picker. #}
-    {%- set _practices = namespace(opts=[]) -%}
-    {%- for c in current_user.clinicians -%}
-      {%- set _name = (c.first_name ~ " " ~ c.last_name)|trim -%}
-      {%- for aff in c.clinician_affiliations -%}
-        {%- set _label = (_name ~ " · " ~ aff.org.name) if aff.org else _name -%}
-        {%- set _practices.opts = _practices.opts + [(aff.id, _label)] -%}
-      {%- endfor -%}
-    {%- endfor -%}
-    {{ composite_select_field("clinician_affiliation_id", "Referring as", _practices.opts, current=d.clinician_affiliation_id if d else None, default_first=true) }}
+    {# Referring clinician picker — required. Options are the post
+       owner's practices on edit (plus the post's current one), the
+       current user's on create — see `affiliation_options`. Mirrors the
+       opening form's practice picker. #}
+    {%- set _practices = affiliation_options(post.owner if post else current_user, d.clinician_affiliation if d else None) -%}
+    {{ composite_select_field("clinician_affiliation_id", "Referring as", _practices, current=d.clinician_affiliation_id if d else None, default_first=true) }}
     {% call form_section(REFERRAL_SECTIONS.logistics, description="Where and how the client can meet.") %}
       {{ select_field("location_state", "State", US_STATES, current=d.location_state if d else None, placeholder=true) }}
       {# Session-format is a multi-checkbox — any subset of
