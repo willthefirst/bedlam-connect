@@ -7,11 +7,13 @@ import pytest
 from src.domain.logic.posts.view import (
     _LIST_PASSTHROUGH,
     _SCALAR_PASSTHROUGH,
+    affiliation_options,
     insurance_posture_for_post,
     location_summary,
     post_card_view,
     post_feed_headline,
     post_row_summary,
+    program_options,
     referral_headline,
     service_labels,
 )
@@ -1449,3 +1451,55 @@ def test_row_summary_opening_reads_age_and_services_from_detail():
     post.opening_detail.services = ["therapy_group"]
     summary = post_row_summary(post)
     assert "Therapy — Group" in summary
+
+
+# --- Picker options ------------------------------------------------------
+
+
+def _aff(id_, first="Jane", last="Smith", org=None):
+    return SimpleNamespace(
+        id=id_,
+        clinician=SimpleNamespace(first_name=first, last_name=last),
+        org=SimpleNamespace(name=org) if org else None,
+    )
+
+
+def _user_with(affs=(), programs=()):
+    return SimpleNamespace(
+        clinicians=[SimpleNamespace(clinician_affiliations=list(affs))],
+        programs=list(programs),
+    )
+
+
+def test_affiliation_options_labels_person_first_org_second():
+    user = _user_with([_aff("a1", org="Acme"), _aff("a2", first="Solo", last="Doc")])
+    assert affiliation_options(user) == [
+        ("a1", "Jane Smith · Acme"),
+        ("a2", "Solo Doc"),
+    ]
+
+
+def test_affiliation_options_appends_current_when_owner_lacks_it():
+    user = _user_with([_aff("a1")])
+    current = _aff("a9", first="Other", last="Person", org="Group")
+    assert affiliation_options(user, current) == [
+        ("a1", "Jane Smith"),
+        ("a9", "Other Person · Group"),
+    ]
+
+
+def test_affiliation_options_does_not_duplicate_current():
+    a1 = _aff("a1")
+    assert affiliation_options(_user_with([a1]), a1) == [("a1", "Jane Smith")]
+
+
+def _program(id_, name, org):
+    return SimpleNamespace(id=id_, name=name, organization=SimpleNamespace(name=org))
+
+
+def test_program_options_appends_current_once():
+    p1 = _program("p1", "IOP", "Acme")
+    p9 = _program("p9", "PHP", "Other")
+    user = _user_with(programs=[p1])
+    assert program_options(user, p9) == [("p1", "IOP · Acme"), ("p9", "PHP · Other")]
+    assert program_options(user, p1) == [("p1", "IOP · Acme")]
