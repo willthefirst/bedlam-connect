@@ -10,9 +10,10 @@ Used by both `posts/new_clinician_opening.html` (create) and
     edit callers omit it so `actions(...)` defaults to "Save changes"
     (the canonical edit-button text — see `_shared/actions.html`).
   - `post`: the persisted Post (for edit) or `None` (for create)
-  - `current_user`: the requesting User; the dropdown iterates
-    `current_user.clinicians` and then each clinician's `.clinician_affiliations`
-    so the label shows the affiliation's org name.
+  - `current_user`: the requesting User. On create the picker lists
+    their practices; on edit it lists the *post owner's* practices
+    (plus the post's current one) via `affiliation_options` — so a
+    superuser editing someone else's post never sees their own.
 
 The `clinician_id` FK on the OpeningDetail links this announcement to
 the clinician whose practice it describes. The wrapper templates redirect
@@ -60,17 +61,10 @@ Field order (referral-aligned):
      `clinician_id` from it (`_resolve_affiliation_context`), so a
      two-affiliation clinician's options no longer collapse onto one
      value. Uses `composite_select_field` because the label is sourced
-     from a nested `affiliations` loop — mirrors `_form_referral.html`'s
-     picker. #}
-    {%- set _practices = namespace(opts=[]) -%}
-    {%- for c in current_user.clinicians -%}
-      {%- set _name = (c.first_name ~ " " ~ c.last_name)|trim -%}
-      {%- for aff in c.clinician_affiliations -%}
-        {%- set _label = (_name ~ " · " ~ aff.org.name) if aff.org else _name -%}
-        {%- set _practices.opts = _practices.opts + [(aff.id, _label)] -%}
-      {%- endfor -%}
-    {%- endfor -%}
-    {{ composite_select_field("clinician_affiliation_id", "Which practice?", _practices.opts, current=d.clinician_affiliation_id if d else None, default_first=true) }}
+     from the affiliation's clinician + org — shares `affiliation_options`
+     with `_form_referral.html`'s picker. #}
+    {%- set _practices = affiliation_options(post.owner if post else current_user, d.clinician_affiliation if d else None) -%}
+    {{ composite_select_field("clinician_affiliation_id", "Which practice?", _practices, current=d.clinician_affiliation_id if d else None, default_first=true) }}
     {# The opening describes itself. `services` uses the same
        `ReferralService` vocab as the request side; `other` reveals the
        free-text via the shared `services:other` conditional rule. #}
