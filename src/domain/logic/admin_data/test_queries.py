@@ -15,7 +15,7 @@ import uuid
 import pytest
 from sqlalchemy.orm import Session
 
-from src.domain.logic.admin_data.sql_functions import register_sql_functions
+from src.domain.logic.admin_data.sql_functions import ago, register_sql_functions
 from src.domain.models import AdminNote, Post, PostConnection, User
 from src.framework.audit.core import AuditAction
 from src.framework.audit.log import AuditLog
@@ -112,11 +112,15 @@ def _note(run_query, subject_type, subject, action, value="", note="", actor=Non
 
 def test_new_connections_lists_unreviewed_until_reviewed(scenario, run_query):
     rows = run_query("new_connections")
+    # `ago` counts whole Pacific calendar days, so a 4.5-day-old row reads
+    # "4 days ago" in the afternoon but "5 days ago" before noon. The
+    # rendering itself is pinned under a frozen clock in
+    # `test_sql_functions.py`; here we only pin that the query uses it.
     assert rows == [
         {
             "connection": "Elena Fischer → Dana Ortiz",
             "on_post": "Referral: adults_25_64, kaiser",
-            "made": "4 days ago",
+            "made": ago(str(scenario["connection"].created_at)),
             "messages": 2,
             "id": scenario["connection"].id.hex,
         }
