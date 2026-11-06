@@ -33,16 +33,17 @@ class AnthropicBrain:
                 msgs.append({"role": m.role, "content": parts})
             else:
                 msgs.append({"role": m.role, "content": m.content})
-        if json:
-            msgs.append({"role": "assistant", "content": "{"})  # prefill to force a JSON object
-        body = {"model": self.model, "system": system, "messages": msgs, "max_tokens": self.max_tokens, "temperature": self.temperature}
+        # No assistant prefill and no temperature: current Claude models (4.6+) reject
+        # both with a 400. The system prompt already demands a bare JSON object and
+        # the caller's parser tolerates surrounding text.
+        body = {"model": self.model, "system": system, "messages": msgs, "max_tokens": self.max_tokens}
         headers = {"content-type": "application/json", "x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
         with httpx.Client(timeout=self.timeout) as client:
             r = client.post(f"{self.base_url}/v1/messages", json=body, headers=headers)
-            r.raise_for_status()
+            if r.status_code >= 400:
+                # Surface the API's own message; raise_for_status() hides it.
+                raise RuntimeError(f"anthropic {r.status_code}: {r.text[:500]}")
             data = r.json()
         text = "".join(p.get("text", "") for p in data.get("content", []) if p.get("type") == "text")
-        if json:
-            text = "{" + text
         usage = data.get("usage") or {}
         return Completion(text=text, model=data.get("model", self.model), input_tokens=usage.get("input_tokens", 0), output_tokens=usage.get("output_tokens", 0), raw=data)
