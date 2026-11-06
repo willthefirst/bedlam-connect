@@ -191,9 +191,22 @@ def get_template_context():
     provider is configured (no script tag rendered). See
     `src/framework/observability/` for the contract and how to add a new
     provider.
+
+    `storyteller_frontend` is the same shape of switch for the Storyteller
+    recording snippet: `{endpoint, site_key}` when `STORYTELLER_SITE_KEY`
+    is set, else `None` (no script tag). See
+    `src/domain/logic/storyteller/README.md`.
     """
     return {
         "is_development": settings.ENVIRONMENT == "development",
         "livereload_port": "35729",
         "observability_frontend": observability.frontend_context(),
+        "storyteller_frontend": (
+            {
+                "endpoint": settings.STORYTELLER_ENDPOINT,
+                "site_key": settings.STORYTELLER_SITE_KEY,
+            }
+            if settings.STORYTELLER_SITE_KEY
+            else None
+        ),
     }

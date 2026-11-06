@@ -76,6 +76,14 @@ class Settings(BaseSettings):
     # is the SQLite file stories land in; `data/` is the persisted volume.
     STORYTELLER_SECRET: str = ""
     STORYTELLER_DB_PATH: str = "data/storyteller.db"
+    # The browser snippet is rendered by `base.html` iff `STORYTELLER_SITE_KEY`
+    # is set (the service rejects events without it; it is public, like
+    # the Turnstile site key). `STORYTELLER_ENDPOINT` is where the snippet
+    # sends events — same-origin `/storyteller` in prod (nginx proxies it
+    # to the sidecar); point it at `http://localhost:8787/storyteller` when
+    # running the service by hand in dev.
+    STORYTELLER_SITE_KEY: str = ""
+    STORYTELLER_ENDPOINT: str = "/storyteller"
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
