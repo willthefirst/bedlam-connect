@@ -325,6 +325,43 @@ async def test_list_kind_filter_narrows_to_one_kind(
     }, f"/posts?kind=referral returned: {kinds_filtered!r}"
 
 
+async def test_list_keeps_referral_rows_client_facts_out_of_recordings(
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+):
+    """In the feed, a referral row's headline (client demographics) and
+    facts block carry `data-no-record`; an opening row's do not. The
+    row itself and its poster line stay recordable so a story can still
+    say "opened the third row"."""
+    author = create_test_user(username=f"a-{uuid.uuid4()}")
+    referral = _referral_post(owner_id=author.id)
+    opening = _opening_post(owner_id=author.id)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add(author)
+            session.add(referral)
+            session.add(opening)
+
+    response = await authenticated_client.get("/posts")
+    assert response.status_code == 200
+    tree = HTMLParser(response.text)
+
+    def row(kind: str):
+        node = tree.css_first(f'#posts-list [data-kind="{kind}"]')
+        assert node is not None, kind
+        return node
+
+    ref = row("referral")
+    assert "data-no-record" not in ref.attributes, "the row itself stays recordable"
+    assert "data-no-record" in ref.css_first("h2").attributes
+    assert "data-no-record" in ref.css_first("section.entity-facts").attributes
+
+    opn = row("clinician_opening")
+    assert "data-no-record" not in opn.css_first("h2").attributes
+    assert "data-no-record" not in opn.css_first("section.entity-facts").attributes
+
+
 # --- Browse chrome: no toolbar, no intent toggle, filter summary present -
 
 
@@ -476,6 +513,39 @@ async def test_detail_route_works_for_each_kind(
 
     response = await authenticated_client.get(f"/posts/{post.id}")
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize("kind,builder", _KINDS)
+async def test_detail_keeps_client_describing_facts_out_of_recordings(
+    kind: str,
+    builder,
+    authenticated_client: AsyncClient,
+    db_test_session_manager: async_sessionmaker[AsyncSession],
+    logged_in_user,
+):
+    """A referral's facts and headline describe a client, so the detail
+    page marks them `data-no-record` (the session-recording snippet's
+    block selector — see `src/domain/logic/storyteller/README.md`).
+    Openings and intakes describe a practice/program and stay recordable.
+    The Connect panel is never blocked: stories must still see the
+    message flow."""
+    author = create_test_user(username=f"a-{uuid.uuid4()}")
+    post = builder(owner_id=author.id)
+    async with db_test_session_manager() as session:
+        async with session.begin():
+            session.add(author)
+            session.add(post)
+
+    response = await authenticated_client.get(f"/posts/{post.id}")
+    assert response.status_code == 200
+    tree = HTMLParser(response.text)
+    main = tree.css_first(".post-detail-main")
+    headline = tree.css_first("h1 span")
+    assert main is not None and headline is not None
+    blocked = kind == "referral"
+    assert ("data-no-record" in main.attributes) is blocked
+    assert ("data-no-record" in headline.attributes) is blocked
+    assert tree.css_first(".post-detail-grid [data-no-record] form") is None
 
 
 @pytest.mark.parametrize("kind,builder", _KINDS)

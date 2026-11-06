@@ -62,8 +62,9 @@ post's kind. #}
   headline_url=entity_url(entity_name, id=post.id),
   headline=headline_text,
   subtitle=subtitle,
-  data_kind=post.kind) -%}
-  {{ facts_block(view) }}
+  data_kind=post.kind,
+  no_record=view.describes_client) -%}
+  {{ facts_block(view, no_record=view.describes_client) }}
   {#- Footer carries the Message CTA — a button-link to the post's
     detail page where the inline contact form lives. We don't put
     the form itself in the list card (a textarea per row would be

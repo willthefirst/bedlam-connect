@@ -327,6 +327,14 @@ def post_card_view(post) -> dict[str, Any]:
     base: dict[str, Any] = {
         "kind": kind,
         "kind_verb": _KIND_VERB.get(kind),
+        # True when the post's own facts describe a *client* (a referral:
+        # demographics, pronouns, narrative) rather than a practice or
+        # program. Templates turn this into `data-no-record` on the
+        # elements that render those facts so session recording
+        # (Storyteller, see `src/domain/logic/storyteller/README.md`)
+        # never captures client-describing text. One flag here, not a
+        # kind check in every template.
+        "describes_client": kind == "referral",
         "headline": None,
         "header_state": None,
         "in_person": None,

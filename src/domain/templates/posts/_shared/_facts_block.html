@@ -62,8 +62,10 @@ globals. #}
     {%- endif %}
   {%- endif %}
 {%- endmacro %}
-{% macro facts_block(view) -%}
-  {%- call _facts_wrapper() %}
+{# `no_record` passes through to the wrapper's `data-no-record` (see
+   `_shared/sections.html`); the card sets it from `view.describes_client`. #}
+{% macro facts_block(view, no_record=False) -%}
+  {%- call _facts_wrapper(no_record=no_record) %}
     {{ services_fact(view) }}
     {%- set _location = location_summary(view) -%}
     {%- if _location %}
