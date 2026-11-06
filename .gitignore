@@ -19,6 +19,9 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# The vendored Storyteller snippet is a committed build artifact (no npm
+# in this repo's toolchain); see vendor/README.md.
+!vendor/storyteller/packages/snippet/dist/
 downloads/
 eggs/
 .eggs/

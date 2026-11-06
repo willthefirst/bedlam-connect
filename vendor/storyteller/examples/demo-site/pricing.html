@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Acme — Pricing</title>
+<style>body{font-family:system-ui;margin:0;padding:40px;max-width:900px}nav a{margin-right:16px}
+.plans{display:flex;gap:24px;margin:32px 0}.plan{border:1px solid #ccc;border-radius:8px;padding:24px;flex:1}
+.plan h2{margin-top:0}.toggle button{padding:8px 16px}.toggle button.on{background:#333;color:#fff}
+footer{margin-top:400px;color:#888}</style></head><body>
+<nav><a href="/pricing.html">Pricing</a><a href="/docs.html">Docs</a><a href="/signup.html">Sign up</a></nav>
+<h1>Simple pricing</h1>
+<div class="toggle"><button id="monthly" class="on">Monthly</button><button id="annual">Annual</button></div>
+<div class="plans">
+  <div class="plan" id="plan-free"><h2>Free</h2><p class="price">$0</p><p>For trying things out.</p><a href="/signup.html?plan=free">Get started</a></div>
+  <div class="plan" id="plan-pro"><h2>Pro plan</h2><p class="price">$29/mo</p><p>For individuals and small teams.</p><a href="/signup.html?plan=pro"><button>Start trial</button></a></div>
+  <div class="plan" id="plan-team"><h2>Team plan</h2><p class="price">$99/mo</p><p>For companies with many seats.</p><a href="/signup.html?plan=team"><button>Start trial</button></a></div>
+</div>
+<h3>Frequently asked questions</h3>
+<p>Can I cancel any time? Yes.</p><p>Do you offer discounts for nonprofits? Email us.</p>
+<footer>© Acme</footer>
+<script>
+const m=document.getElementById('monthly'),a=document.getElementById('annual');
+function setMode(annual){m.classList.toggle('on',!annual);a.classList.toggle('on',annual);
+document.querySelector('#plan-pro .price').textContent=annual?'$290/yr':'$29/mo';
+document.querySelector('#plan-team .price').textContent=annual?'$990/yr':'$99/mo';}
+m.onclick=()=>setMode(false);a.onclick=()=>setMode(true);
+</script>
+<script src="/storyteller.js"></script>
+<script>storyteller.init({endpoint:window.__ST_ENDPOINT||'/storyteller',siteKey:window.__ST_KEY||'demo',dumpOnly:!!window.__ST_DUMP,debug:true});storyteller.start();</script>
+</body></html>

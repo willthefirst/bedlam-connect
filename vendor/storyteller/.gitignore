@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.egg-info/
+data/
+*.db
+.env
+packages/snippet/dist/*.map
+build/
+.pytest_cache/

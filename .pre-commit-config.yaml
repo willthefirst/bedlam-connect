@@ -1,4 +1,9 @@
 # Pre-commit configuration for code quality checks
+
+# Vendored upstream trees keep upstream's formatting and prose style —
+# see vendor/README.md. Hooks get explicit filenames, so black's own
+# `extend-exclude` in pyproject.toml would not stop them here.
+exclude: ^vendor/
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
