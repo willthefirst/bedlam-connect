@@ -10,7 +10,10 @@ import yaml
 DEFAULTS: dict[str, Any] = {
     "site": {"key": "", "allowed_origins": ["*"], "brief_file": "brief.md"},
     "recording": {"default_enabled": False, "idle_timeout_minutes": 10, "mask_all_text": False, "keep_screenshots": False},
-    "llm": {"provider": "openai_compatible", "base_url": "https://api.openai.com/v1", "api_key_env": "LLM_API_KEY", "model": "gpt-4o-mini", "custom_module": None, "max_input_tokens": 60000},
+    # No default base_url: each brain supplies its own (OpenAI's for openai_compatible,
+    # Anthropic's for anthropic). A shared default here leaked api.openai.com into the
+    # Anthropic adapter whenever a site set `provider: anthropic` without a base_url.
+    "llm": {"provider": "openai_compatible", "api_key_env": "LLM_API_KEY", "model": "gpt-4o-mini", "custom_module": None, "max_input_tokens": 60000},
     "consumer": {"base_url": "", "routes": {"write_story": "/internal/storyteller/stories", "read_visitor": "/internal/storyteller/visitors/{id}"}, "secret_env": "STORYTELLER_SECRET", "timeout_seconds": 5},
     "service": {"prefix": "/storyteller", "admin_token_env": "STORYTELLER_ADMIN_TOKEN", "buffer_dir": "./data", "finalize_every_seconds": 30},
     "timeline": {"signals": {}},

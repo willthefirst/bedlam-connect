@@ -20,6 +20,10 @@ The library's protocol is the contract — [`vendor/storyteller/docs/protocol.md
 - Secret and DB path come from `settings`, read per request (so tests can monkeypatch), not from `os.environ` at mount time.
 - `add_fact` rejects empty text with 422; upstream stores it.
 
+**Local patches to `vendor/storyteller/` itself** (apply upstream when syncing, or drop once upstream has them):
+
+- `packages/service/storyteller/config.py`: no default `llm.base_url`. The shared OpenAI default leaked into the Anthropic brain whenever `provider: anthropic` was set without a `base_url`, sending stories to `api.openai.com/v1/v1/messages`. Pinned by `packages/service/tests/test_config.py`.
+
 The browser snippet at `src/framework/static/js/storyteller.js` is a verbatim copy of `vendor/storyteller/packages/snippet/dist/storyteller.js`. To upgrade either, re-copy from `vendor/storyteller/` after updating it, then re-apply the list above.
 
 ## The snippet
