@@ -24,7 +24,9 @@ family). #}
   {%- endif -%}
   <tr data-kind="{{ post.kind }}">
     <td>{{ kind_label }}</td>
-    <td>
+    {# A referral's summary describes the client → kept out of session
+       recordings (`describes_client`, see `post_card_view`). #}
+    <td {% if post_card_view(post).describes_client %}data-no-record{% endif %}>
       <a href="{{ entity_url(entity_name, id=post.id) }}">{{ summary }}</a>
     </td>
     <td>No interest yet</td>

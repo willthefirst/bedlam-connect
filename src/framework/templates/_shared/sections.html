@@ -112,9 +112,14 @@
          <a href="…">View parent</a>
        {%- endcall %}
      {% endcall %}
+
+   `no_record=True` marks the block `data-no-record`, the attribute the
+   session-recording snippet treats as "never capture this subtree" —
+   for blocks whose rows describe a person other than the viewer (a
+   referral's client facts). See `src/domain/logic/storyteller/README.md`.
 #}
-{% macro facts_block() -%}
-  <section class="entity-facts">
+{% macro facts_block(no_record=False) -%}
+  <section class="entity-facts" {% if no_record %}data-no-record{% endif %}>
     <dl>
       {{ caller() }}
     </dl>

@@ -8,8 +8,13 @@
    referrals, org name for openings, program name for intakes) — no kind
    carries a poster-set subject override. #}
 {% block current_label %}
-  {{ view.headline or 'Post'|truncate(40) }}
-  {% if view.header_state %}, {{ view.header_state }}{% endif %}
+  {# A referral's headline is the client's demographics — kept out of
+     session recordings like the facts below (`describes_client`). #}
+  <span {% if view.describes_client %}data-no-record{% endif %}>
+    {{- view.headline or 'Post'|truncate(40) -}}
+    {%- if view.header_state %}, {{ view.header_state }}
+    {% endif -%}
+  </span>
 {% endblock %}
 {# The post identity line (type pill · date) is NOT the framework `subtitle`
    block — it's rendered as a `.post-meta` block at the top of `content`
@@ -34,7 +39,11 @@
       <p class="meta">{{ post.created_at | format_post_date }}</p>
     </section>
     <div class="post-detail-grid">
-      <div class="post-detail-main">
+      {# `data-no-record` on a referral keeps the client-describing facts
+         (and the narrative) out of session recordings; the Connect panel
+         stays recordable so stories still see the message flow. #}
+      <div class="post-detail-main"
+           {% if view.describes_client %}data-no-record{% endif %}>
         {%- if view.kind == "referral" %}
           {{ referral_facts(view, redacted=not can_act_as_provider) }}
         {%- else %}

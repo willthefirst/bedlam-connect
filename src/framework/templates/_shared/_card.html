@@ -55,10 +55,15 @@ caller body — Pico will tint it automatically.
 {# `headline_url=None` renders the headline as plain text rather than an
    `<a>` — used by redacted list cards where the H3 carries a
    `locked_name(...)` button instead of a navigable link. #}
-{% macro card(id, headline_url, headline, subtitle=None, data_kind=None) -%}
+{# `no_record=True` marks the header (headline + subtitle) `data-no-record`
+   so the session-recording snippet never captures it — for cards whose
+   headline describes a person other than the viewer (a referral's client
+   demographics). The caller body is unaffected; mark its facts block
+   separately. See `src/domain/logic/storyteller/README.md`. #}
+{% macro card(id, headline_url, headline, subtitle=None, data_kind=None, no_record=False) -%}
   <article data-row-id="{{ id }}"
            {% if data_kind %}data-kind="{{ data_kind }}"{% endif %}>
-    <header>
+    <header {% if no_record %}data-no-record{% endif %}>
       <h3>
         {%- if headline_url -%}
           <a href="{{ headline_url }}">{{ headline }}</a>
