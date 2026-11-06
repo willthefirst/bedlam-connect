@@ -177,13 +177,20 @@ rollback() {
 }
 
 # Storyteller sidecar (vendor/storyteller). Not blue/green: one container,
-# recreated in place after the app switch — the snippet buffers nothing
-# across the gap, so a few seconds of lost events per deploy is the
-# accepted cost. Best-effort: a sidecar failure never fails the app
-# deploy, because the snippet is inert until the service answers.
+# replaced after the app switch — the snippet buffers nothing across the
+# gap, so a few seconds of lost events per deploy is the accepted cost.
+# Best-effort: a sidecar failure never fails the app deploy, because the
+# snippet is inert until the service answers.
+#
+# Stop+remove before `up`, never recreate in place: docker-compose v1 on
+# a current Docker engine crashes on "Recreating" with
+# `KeyError: 'ContainerConfig'` (the blue/green path avoids it the same
+# way via cleanup_containers). Recording state lives on the /data volume,
+# so removing the container loses nothing.
 deploy_storyteller() {
     log "Deploying Storyteller sidecar..."
     mkdir -p /opt/bedlam-connect/storyteller-data
+    run_cmd docker-compose -f docker-compose.blue-green.yml rm -sf storyteller || true
     if run_cmd docker pull ghcr.io/willthefirst/bedlam-connect-storyteller:latest \
         && run_cmd docker-compose -f docker-compose.blue-green.yml up -d storyteller; then
         success "Storyteller sidecar is up on 127.0.0.1:8787"
