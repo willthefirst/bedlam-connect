@@ -154,6 +154,29 @@
 </script>
 {% endif %}
 {% endif %}
+{% if storyteller_frontend %}
+{# Storyteller recording snippet (vendor/storyteller; the file is a
+       verbatim copy of its built dist). Rendered iff STORYTELLER_SITE_KEY
+       is set; loads inert and `start()` records only when the service's
+       kill switch is on, so the real on/off lives in the service, not
+       here. Typed input is always masked; wrap anything that must never
+       be captured in `data-no-record`. `identify()` ties the browser's
+       visits to the signed-in user so stories can say who. `defer` for
+       the same first-paint reason as the scripts above; the init runs on
+       DOMContentLoaded so the deferred global is defined. See
+       src/domain/logic/storyteller/README.md. #}
+<script src="/static/fw/js/storyteller.js{% if static_version %}?v={{ static_version }}{% endif %}" defer></script>
+<script>
+      document.addEventListener("DOMContentLoaded", function () {
+        storyteller.init({
+          endpoint: "{{ storyteller_frontend.endpoint }}",
+          siteKey: "{{ storyteller_frontend.site_key }}",
+        })
+        {% if current_user_id %}storyteller.identify("{{ current_user_id }}"){% endif %}
+        storyteller.start()
+      })
+</script>
+{% endif %}
 </head>
 {# `hx-ext="response-targets"` enables 4xx response swaps for any
      descendant form. The extension is loaded in <head>; this attribute

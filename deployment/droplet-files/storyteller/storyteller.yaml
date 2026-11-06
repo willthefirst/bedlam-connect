@@ -1,0 +1,38 @@
+# Storyteller service config for production. Mounted read-only at /config
+# in the `storyteller` container (docker-compose.blue-green.yml); the
+# service re-reads brief.md per visit. Any key can be overridden from the
+# environment as ST_<SECTION>__<KEY> — the site key arrives that way
+# (ST_SITE__KEY in /opt/bedlam-connect/config/.env, written by cd.yml) so
+# it has one home alongside the app's STORYTELLER_SITE_KEY.
+# Reference: vendor/storyteller/storyteller.example.yaml.
+site:
+  allowed_origins:
+    - https://bedlamconnect.com
+    - https://www.bedlamconnect.com
+  brief_file: brief.md
+
+recording:
+  # Off until an admin flips it: see deployment/README.md § Storyteller.
+  default_enabled: false
+  idle_timeout_minutes: 10
+
+llm:
+  provider: anthropic
+  api_key_env: LLM_API_KEY
+  model: claude-sonnet-5-5
+
+consumer:
+  # The app, reached through nginx so the blue/green switch is invisible
+  # to the sidecar.
+  base_url: https://www.bedlamconnect.com
+  routes:
+    write_story: /internal/storyteller/stories
+    read_visitor: /internal/storyteller/visitors/{id}
+  secret_env: STORYTELLER_SECRET
+  timeout_seconds: 5
+
+service:
+  prefix: /storyteller
+  admin_token_env: STORYTELLER_ADMIN_TOKEN
+  buffer_dir: /data
+  finalize_every_seconds: 30

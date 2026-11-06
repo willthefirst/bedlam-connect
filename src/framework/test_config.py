@@ -53,6 +53,10 @@ def test_storyteller_defaults_are_off_and_on_the_persisted_volume():
         settings = Settings(SECRET="test", DATABASE_URL="postgresql://test")
         assert settings.STORYTELLER_SECRET == ""
         assert settings.STORYTELLER_DB_PATH == "data/storyteller.db"
+        # No site key → `base.html` renders no snippet at all; the default
+        # endpoint is the same-origin path nginx proxies to the sidecar.
+        assert settings.STORYTELLER_SITE_KEY == ""
+        assert settings.STORYTELLER_ENDPOINT == "/storyteller"
 
 
 @pytest.mark.parametrize(
