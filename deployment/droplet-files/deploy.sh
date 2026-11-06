@@ -74,6 +74,25 @@ upstream app_backend {
 server {
     server_name ${APP_DOMAIN} www.${APP_DOMAIN};
 
+    # Storyteller sidecar: only the two snippet-facing routes are exposed,
+    # same-origin so the snippet needs no CORS. The service's admin/health
+    # routes stay host-local on 127.0.0.1:8787 (see deployment/README.md).
+    # rrweb event chunks can be a few MB (full DOM snapshots), hence the
+    # body-size override.
+    location = /storyteller/events {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        client_max_body_size 10m;
+    }
+    location = /storyteller/recording {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
     location / {
         proxy_pass http://app_backend;
         proxy_set_header Host \$host;
@@ -155,6 +174,22 @@ rollback() {
     cleanup_containers "bedlam-connect-$failed_service"
 
     error "Rollback completed. System is running on port $old_port"
+}
+
+# Storyteller sidecar (vendor/storyteller). Not blue/green: one container,
+# recreated in place after the app switch — the snippet buffers nothing
+# across the gap, so a few seconds of lost events per deploy is the
+# accepted cost. Best-effort: a sidecar failure never fails the app
+# deploy, because the snippet is inert until the service answers.
+deploy_storyteller() {
+    log "Deploying Storyteller sidecar..."
+    mkdir -p /opt/bedlam-connect/storyteller-data
+    if run_cmd docker pull ghcr.io/willthefirst/bedlam-connect-storyteller:latest \
+        && run_cmd docker-compose -f docker-compose.blue-green.yml up -d storyteller; then
+        success "Storyteller sidecar is up on 127.0.0.1:8787"
+    else
+        warning "Storyteller sidecar failed to start; the app is unaffected. Check: docker logs storyteller"
+    fi
 }
 
 get_current_port() {
@@ -241,6 +276,7 @@ if check_health $NEW_PORT; then
 
             success "🎉 Zero-downtime deployment completed successfully!"
             log "New instance ($NEW) is running on port $NEW_PORT"
+            deploy_storyteller
         else
             # Rollback if verification fails
             if [ "$CURRENT" != "none" ]; then

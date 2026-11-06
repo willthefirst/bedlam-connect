@@ -32,3 +32,20 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Storyteller sidecar — not part of the blue/green pair; deploy.sh brings
+  # it up (deploy_storyteller) after the app switch. Bound to loopback:
+  # nginx proxies only /storyteller/events and /storyteller/recording.
+  # Config + site brief come from deployment/droplet-files/storyteller/,
+  # synced to /opt/bedlam-connect/deployment/storyteller/.
+  storyteller:
+    image: ghcr.io/willthefirst/bedlam-connect-storyteller:latest
+    container_name: storyteller
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8787:8787'
+    volumes:
+      - /opt/bedlam-connect/deployment/storyteller:/config:ro
+      - /opt/bedlam-connect/storyteller-data:/data
+    env_file:
+      - /opt/bedlam-connect/config/.env

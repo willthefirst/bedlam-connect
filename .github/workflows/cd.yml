@@ -48,6 +48,28 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      # The Storyteller sidecar (vendor/storyteller) ships as its own
+      # image next to the app's; deploy.sh pulls it after the blue/green
+      # switch. See deployment/README.md § Storyteller.
+      - name: Extract Storyteller metadata
+        id: meta_storyteller
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-storyteller
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Storyteller image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vendor/storyteller
+          file: ./vendor/storyteller/Dockerfile
+          push: true
+          tags: ${{ steps.meta_storyteller.outputs.tags }}
+          labels: ${{ steps.meta_storyteller.outputs.labels }}
+
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -84,14 +106,21 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_BROWSER_DSN: ${{ secrets.SENTRY_BROWSER_DSN }}
           APP_RELEASE: ${{ github.sha }}
+          # Storyteller — optional: empty values leave the snippet unrendered
+          # and the sidecar's hooks failing closed. See deployment/README.md.
+          STORYTELLER_SECRET: ${{ secrets.STORYTELLER_SECRET }}
+          STORYTELLER_ADMIN_TOKEN: ${{ secrets.STORYTELLER_ADMIN_TOKEN }}
+          STORYTELLER_SITE_KEY: ${{ secrets.STORYTELLER_SITE_KEY }}
+          STORYTELLER_LLM_API_KEY: ${{ secrets.STORYTELLER_LLM_API_KEY }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USERNAME }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: APP_SECRET,RESEND_API_KEY,APP_BASE_URL,SENTRY_DSN,SENTRY_BROWSER_DSN,APP_RELEASE
+          envs: APP_SECRET,RESEND_API_KEY,APP_BASE_URL,SENTRY_DSN,SENTRY_BROWSER_DSN,APP_RELEASE,STORYTELLER_SECRET,STORYTELLER_ADMIN_TOKEN,STORYTELLER_SITE_KEY,STORYTELLER_LLM_API_KEY
           script: |
             set -e
-            # Validate required secrets are present
+            # Validate required secrets are present (the STORYTELLER_* ones
+            # are optional — see above)
             for var in APP_SECRET RESEND_API_KEY APP_BASE_URL SENTRY_DSN SENTRY_BROWSER_DSN; do
               if [ -z "${!var}" ]; then
                 echo "❌ GitHub Secret '$var' is not set — aborting" >&2
@@ -111,6 +140,16 @@ jobs:
               printf 'SENTRY_DSN=%s\n'                     "$SENTRY_DSN"
               printf 'SENTRY_BROWSER_DSN=%s\n'             "$SENTRY_BROWSER_DSN"
               printf 'APP_RELEASE=%s\n'                    "$APP_RELEASE"
+              # Both containers read this file. The app uses
+              # STORYTELLER_SECRET + STORYTELLER_SITE_KEY; the sidecar uses
+              # STORYTELLER_SECRET, STORYTELLER_ADMIN_TOKEN, LLM_API_KEY and
+              # the ST_SITE__KEY override (same value as the app's site key,
+              # written once here so the two can't drift).
+              printf 'STORYTELLER_SECRET=%s\n'             "$STORYTELLER_SECRET"
+              printf 'STORYTELLER_ADMIN_TOKEN=%s\n'        "$STORYTELLER_ADMIN_TOKEN"
+              printf 'STORYTELLER_SITE_KEY=%s\n'           "$STORYTELLER_SITE_KEY"
+              printf 'ST_SITE__KEY=%s\n'                   "$STORYTELLER_SITE_KEY"
+              printf 'LLM_API_KEY=%s\n'                    "$STORYTELLER_LLM_API_KEY"
             } > /opt/bedlam-connect/config/.env
             chmod 600 /opt/bedlam-connect/config/.env
             echo "✅ Production .env written to droplet"
