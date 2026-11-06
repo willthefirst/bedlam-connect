@@ -40,6 +40,7 @@ The grammar fits resource-shaped CRUD. These stay hand-written. A hand-written *
 | `GET /users/me/email/form` | `user_email.py` | Email field-cluster subresource form — self-only; surfaces verification status, hosts the unverified-viewer / post-resend inbox CTA, and the resend-verification action. |
 | `GET /admin/audit` | `admin.py` | Derived read view over the framework-owned audit log — superuser-only, paginated, no stored resource. |
 | `GET/POST /admin/data/{path}` | `admin.py` | Superuser-only catch-all that hands the request to the admin's Datasette (saved observability queries). A route rather than `app.mount` so auth stays the `current_admin_user` dependency — see [`../logic/admin_data/README.md`](../logic/admin_data/README.md). |
+| `POST /internal/storyteller/stories`, `GET /internal/storyteller/visitors/{id}` | `storyteller.py` | The two hooks the Storyteller service calls — a fixed external protocol, authenticated by the service's HMAC signature rather than a cookie. Its admin-only viewer and conveniences (`/ui`, `/recent`, `/visitors/{id}/facts`, `/instructions/{scope}`) share the prefix behind `current_admin_user` — see [`../logic/storyteller/README.md`](../logic/storyteller/README.md). |
 | `GET /`, `GET /health` | `../../main.py` | Utility endpoints. |
 
 ## Tests

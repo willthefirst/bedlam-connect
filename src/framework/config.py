@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     TURNSTILE_SITE_KEY: str = ""
     TURNSTILE_SECRET_KEY: str = ""
 
+    # Storyteller (visit stories) — see `src/domain/logic/storyteller/README.md`.
+    # `STORYTELLER_SECRET` is the HMAC key the service signs its hook
+    # requests with; the same value goes in the service's environment.
+    # Empty → the hooks answer 503 (misconfigured, not forged). The DB path
+    # is the SQLite file stories land in; `data/` is the persisted volume.
+    STORYTELLER_SECRET: str = ""
+    STORYTELLER_DB_PATH: str = "data/storyteller.db"
+
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("APP_BASE_URL")

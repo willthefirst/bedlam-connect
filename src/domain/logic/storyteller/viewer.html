@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Storyteller</title>
+<style>
+  :root { --bg:#fafaf7; --card:#fff; --ink:#1f1f1c; --muted:#6b6b66; --line:#e6e4dc; --accent:#1d4ed8; --warn:#b45309; --bad:#b91c1c; --good:#15803d; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161614; --card:#1f1f1c; --ink:#ecebe6; --muted:#a3a39c; --line:#33332f; --accent:#8ab4ff; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui, -apple-system, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 16px 80px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  .story { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .head { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:baseline; color:var(--muted); font-size:13px; margin-bottom:10px; }
+  .head b { color: var(--ink); font-weight: 600; font-size: 14px; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+  .pill.good{ border-color: var(--good); color: var(--good);} .pill.bad{ border-color: var(--bad); color: var(--bad);} .pill.warn{border-color:var(--warn);color:var(--warn);}
+  .narr { font-size: 16px; margin: 0 0 12px; }
+  .fr { border-left: 3px solid var(--warn); padding: 4px 10px; margin: 8px 0; font-size: 14px; }
+  .fr .ev { color: var(--muted); font-size: 13px; }
+  details { margin-top: 10px; } summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  pre { background: var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; overflow:auto; white-space:pre; }
+  .tags span { margin-right: 6px; } .sugg { font-size: 14px; color: var(--muted); }
+  .row { display:flex; gap:8px; margin-top:10px; } input, textarea { font: inherit; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); flex:1; }
+  button { font: inherit; padding:6px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Storyteller</h1>
+  <div class="sub">Stories from recent visits, newest first. <span id="count"></span></div>
+  <div class="story">
+    <b>Global instructions</b> <span class="sub" style="font-size:13px">(how every story should be written; takes effect on the next visit)</span>
+    <div class="row"><textarea id="gi" rows="2" placeholder="e.g. Be skeptical about idle time; our users multitask."></textarea><button onclick="saveGlobal()">Save</button></div>
+  </div>
+  <div id="list"><div class="empty">Loading…</div></div>
+</main>
+<script>
+const P = "__PREFIX__";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function cls(o){ if(!o) return ""; if(/complet|success|convert/.test(o)) return "good"; if(/abandon|fail|error|bounce/.test(o)) return "bad"; return "warn"; }
+async function load(){
+  const r = await fetch(P + "/recent?limit=100"); const stories = await r.json();
+  document.getElementById("count").textContent = stories.length ? stories.length + " stories" : "";
+  const el = document.getElementById("list");
+  if(!stories.length){ el.innerHTML = '<div class="empty">No stories yet. Once the service finalizes a visit, it shows up here.</div>'; return; }
+  el.innerHTML = stories.map(s => `
+    <div class="story">
+      <div class="head">
+        <b>${esc((s.started_at||"").replace("T"," ").slice(0,16))}</b>
+        <span class="pill ${cls(s.outcome?.label)}">${esc(s.outcome?.label)} · ${Math.round((s.outcome?.confidence??0)*100)}%</span>
+        <span>${esc(Math.round(s.duration_s))}s · ${esc((s.pages||[]).join(" → "))}</span>
+        <span>${s.device?.mobile ? "mobile" : "desktop"} ${esc(s.device?.browser||"")}</span>
+        <span>${s.user_id ? "user " + esc(s.user_id) : "anon " + esc((s.visitor_id||"").slice(0,8))}</span>
+        ${s.referrer ? `<span>from ${esc(s.referrer)}</span>` : ""}
+        ${s.history_available ? `<span class="pill">returning</span>` : ""}
+      </div>
+      <p class="narr">${esc(s.narrative)}</p>
+      ${(s.friction||[]).map(f => `<div class="fr">t=${Math.round(f.at)}s · ${esc(f.inference)} <span class="pill">${Math.round(f.confidence*100)}%</span><div class="ev">${esc(f.evidence)}</div></div>`).join("")}
+      ${(s.suggestions||[]).length ? `<div class="sugg">Suggestions: ${s.suggestions.map(x => esc(x.text) + " (" + Math.round(x.confidence*100) + "%)").join("; ")}</div>` : ""}
+      <div class="tags" style="margin-top:8px">${(s.tags||[]).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
+      ${s.visitor_summary ? `<div class="sugg" style="margin-top:8px">About this visitor: ${esc(s.visitor_summary)}</div>` : ""}
+      <details><summary>Timeline</summary><pre>${esc(s.timeline_text)}</pre></details>
+      <details><summary>Tell Storyteller something about this visitor</summary>
+        <div class="row"><input id="f-${esc(s.visitor_id)}" placeholder="e.g. This is my friend Sam; she said the upload felt slow"><button onclick="addFact('${esc(s.visitor_id)}')">Add fact</button></div>
+        <div class="row"><input id="i-${esc(s.visitor_id)}" placeholder="Instruction for stories about this visitor"><button onclick="setVisitorIns('${esc(s.visitor_id)}')">Save</button></div>
+      </details>
+      <details><summary>Raw story JSON</summary><pre>${esc(JSON.stringify(s, null, 2))}</pre></details>
+    </div>`).join("");
+}
+async function addFact(v){ const i=document.getElementById("f-"+v); if(!i.value.trim()) return; await fetch(P+"/visitors/"+v+"/facts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:i.value,weight:"high"})}); i.value=""; i.placeholder="Saved — used on this visitor's next story"; }
+async function setVisitorIns(v){ const i=document.getElementById("i-"+v); await fetch(P+"/instructions/visitor:"+v,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:i.value})}); i.placeholder="Saved"; }
+async function saveGlobal(){ await fetch(P+"/instructions/global",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:document.getElementById("gi").value})}); }
+load();
+</script>
+</body>
+</html>
