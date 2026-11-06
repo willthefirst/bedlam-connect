@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Acme — Sign up</title>
+<style>body{font-family:system-ui;margin:0;padding:40px;max-width:520px}label{display:block;margin:16px 0 4px}
+input{width:100%;padding:8px;box-sizing:border-box}.error{color:#b00020;margin-top:6px;display:none}.error.show{display:block}
+button{margin-top:20px;padding:10px 20px}#spinner{display:none}#welcome{display:none}</style></head><body>
+<h1>Create your account</h1>
+<form id="signup" novalidate>
+  <label for="email">Email</label><input id="email" name="email" type="email">
+  <label for="password">Password</label><input id="password" name="password" type="password">
+  <label for="company">Company name</label><input id="company" name="company" type="text">
+  <div class="error" id="company-error">Company name is required</div>
+  <button type="submit" id="submit">Create account</button>
+</form>
+<p id="spinner">Creating your account…</p>
+<div id="welcome" role="dialog"><h2>Welcome aboard</h2><p>Your workspace is ready. Check your email to confirm your address.</p><button id="go">Go to dashboard</button></div>
+<script>
+const f=document.getElementById('signup');
+f.onsubmit=e=>{e.preventDefault();const c=document.getElementById('company');
+if(!c.value.trim()){document.getElementById('company-error').classList.add('show');c.focus();return;}
+document.getElementById('company-error').classList.remove('show');
+f.style.display='none';const s=document.getElementById('spinner');s.style.display='block';
+setTimeout(()=>{s.style.display='none';document.getElementById('welcome').style.display='block';},1500);}
+</script>
+<script src="/storyteller.js"></script>
+<script>storyteller.init({endpoint:window.__ST_ENDPOINT||'/storyteller',siteKey:window.__ST_KEY||'demo',dumpOnly:!!window.__ST_DUMP,debug:true});storyteller.start();</script>
+</body></html>

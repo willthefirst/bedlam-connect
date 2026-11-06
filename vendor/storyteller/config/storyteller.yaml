@@ -1,0 +1,24 @@
+# Config used by docker-compose. For the demo profile this points at the demo consumer and the fake LLM.
+site:
+  key: demo
+  allowed_origins: ["*"]
+  brief_file: brief.md
+recording:
+  default_enabled: true
+  idle_timeout_minutes: 10
+llm:
+  provider: openai_compatible
+  base_url: http://fake-llm:8010/v1
+  api_key_env: LLM_API_KEY
+  model: fake
+consumer:
+  base_url: http://demo-consumer:8000
+  routes:
+    write_story: /internal/storyteller/stories
+    read_visitor: /internal/storyteller/visitors/{id}
+  secret_env: STORYTELLER_SECRET
+service:
+  prefix: /storyteller
+  admin_token_env: STORYTELLER_ADMIN_TOKEN
+  buffer_dir: /data
+  finalize_every_seconds: 15

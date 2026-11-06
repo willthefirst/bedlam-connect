@@ -45,6 +45,16 @@ def test_observability_defaults_are_quota_safe():
         assert settings.APP_RELEASE == ""
 
 
+def test_storyteller_defaults_are_off_and_on_the_persisted_volume():
+    """No secret → the hooks 503 until the deploy sets one (see
+    `src/domain/routes/storyteller.py`); the store lands under `data/`,
+    the volume prod persists across blue/green."""
+    with patch.dict(os.environ, {}, clear=True):
+        settings = Settings(SECRET="test", DATABASE_URL="postgresql://test")
+        assert settings.STORYTELLER_SECRET == ""
+        assert settings.STORYTELLER_DB_PATH == "data/storyteller.db"
+
+
 @pytest.mark.parametrize(
     "value",
     [

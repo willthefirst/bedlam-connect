@@ -1,0 +1,18 @@
+{
+  "name": "@storyteller/snippet",
+  "version": "0.1.0",
+  "description": "Storyteller browser snippet: records visits with rrweb, inert until start()",
+  "license": "MIT",
+  "main": "dist/storyteller.esm.js",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@rrweb/record": "^2.2.0"
+  },
+  "devDependencies": {
+    "@rrweb/types": "^2.2.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.0.0"
+  }
+}
