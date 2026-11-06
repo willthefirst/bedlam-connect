@@ -52,7 +52,11 @@ CSS lives in the "Feed rows" section of `src/domain/static/css/domain.css`. #}
     {# ── Title + poster subtitle — an <hgroup> so Pico styles the poster
        line as the heading's subtitle (muted, tight) with no custom CSS. #}
     <hgroup>
-      <h2>
+      {# `view.describes_client` (a referral): the headline is the client's
+         demographics, so it and the facts below are `data-no-record` —
+         session recordings keep the row's shape and the poster line but
+         not the client-describing text. #}
+      <h2 {% if view.describes_client %}data-no-record{% endif %}>
         <a href="{{ entity_url('post', id=post.id) }}"
            class="post-feed-headline-text">{{ headline }}</a>
       </h2>
@@ -66,7 +70,7 @@ CSS lives in the "Feed rows" section of `src/domain/static/css/domain.css`. #}
     {%- set _services = service_labels(view) -%}
     {%- set _location = location_summary(view) -%}
     {%- if _services or _location -%}
-      {%- call facts_block() -%}
+      {%- call facts_block(no_record=view.describes_client) -%}
         {%- if _services %}{{ fact('services', view.kind_verb, _services | join(", ") , icon='stethoscope') }}
         {% endif -%}
         {%- if _location %}{{ fact('location', 'Location', _location, icon='map-pin') }}

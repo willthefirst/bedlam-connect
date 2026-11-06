@@ -131,3 +131,21 @@ def test_facts_block_empty_body_still_emits_wrapper() -> None:
     tree = HTMLParser(html)
     assert tree.css_first("section.entity-facts dl") is not None
     assert tree.css_first("section.entity-facts dl div[data-fact]") is None
+
+
+def test_facts_block_no_record_marks_the_section() -> None:
+    """``no_record=True`` puts ``data-no-record`` on the wrapper — the
+    attribute the session-recording snippet treats as "never capture this
+    subtree". Off by default so ordinary fact blocks stay recordable."""
+    env = _make_env()
+    template = (
+        '{%- from "_shared/sections.html" import fact, facts_block -%}'
+        "{% call facts_block(no_record=True) %}{{ fact('a', 'A', 'x') }}{% endcall %}"
+    )
+    tree = HTMLParser(env.from_string(template).render())
+    section = tree.css_first("section.entity-facts")
+    assert "data-no-record" in section.attributes
+    assert section.css_first("div[data-fact='a']") is not None
+
+    default = HTMLParser(_render(env, "{{ fact('a', 'A', 'x') }}"))
+    assert "data-no-record" not in default.css_first("section.entity-facts").attributes
