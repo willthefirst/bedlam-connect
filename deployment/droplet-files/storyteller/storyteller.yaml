@@ -18,6 +18,10 @@ recording:
 
 llm:
   provider: anthropic
+  # Explicit even though the anthropic brain defaults to it: an older
+  # library default leaked api.openai.com here (see vendor patch list in
+  # src/domain/logic/storyteller/README.md).
+  base_url: https://api.anthropic.com
   api_key_env: LLM_API_KEY
   model: claude-sonnet-5-5
 
