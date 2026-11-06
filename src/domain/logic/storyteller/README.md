@@ -22,6 +22,12 @@ The library's protocol is the contract — [`vendor/storyteller/docs/protocol.md
 
 The browser snippet at `src/framework/static/js/storyteller.js` is a verbatim copy of `vendor/storyteller/packages/snippet/dist/storyteller.js`. To upgrade either, re-copy from `vendor/storyteller/` after updating it, then re-apply the list above.
 
+## The snippet
+
+`base.html` renders the snippet on every page iff `STORYTELLER_SITE_KEY` is set (`storyteller_frontend` in the template context, same switch shape as `observability_frontend`). It `init`s with `STORYTELLER_ENDPOINT`, calls `identify(<user id>)` for signed-in viewers so stories can name the member, then `start()`. Rendering the tag is not recording: `start()` first asks the service whether recording is on, and the service's kill switch is off by default — turning it on is the deployment's call ([`deployment/README.md § Storyteller`](../../../../deployment/README.md)). Typed input is always masked; mark any element whose text must never leave the browser with `data-no-record`.
+
+**Trying it locally without Docker.** Run the app with `STORYTELLER_SECRET=<x> STORYTELLER_SITE_KEY=<k> STORYTELLER_ENDPOINT=http://localhost:8787/storyteller`, then from a Python 3.12 venv: `pip install vendor/storyteller/packages/service` and `storyteller serve --config <your.yaml> --port 8787`, where the yaml copies `vendor/storyteller/storyteller.example.yaml` with `site.key: <k>`, `consumer.base_url: http://localhost:8000`, `recording.default_enabled: true`, and either a real LLM or `vendor/storyteller/examples/fake_llm.py` (`uvicorn fake_llm:app --port 8010`, `llm.base_url: http://localhost:8010/v1`). Start the service *after* the app: its hook check runs once at startup and `/storyteller/health` reports that result until the next restart.
+
 ## Tests
 
 Colocated. [`test_adapter.py`](test_adapter.py) pins the signature scheme against the protocol and the store's read-hook shape; [`../../routes/test_storyteller.py`](../../routes/test_storyteller.py) pins the two auth ladders and the healthcheck/404 protocol behaviours, with the store pointed at a temp file via `dependency_overrides`.

@@ -37,15 +37,24 @@ _STUB = """
 """
 
 
-def _render(observability_frontend: object | None = None) -> str:
+def _render(
+    observability_frontend: object | None = None,
+    storyteller_frontend: object | None = None,
+    current_user_id: object | None = None,
+) -> str:
     env = _make_env()
     _add_child(env, "stub.html", _STUB)
     return env.get_template("stub.html").render(
         request=_request_stub(),
-        is_authenticated=False,
+        is_authenticated=current_user_id is not None,
         is_development=False,
         observability_frontend=observability_frontend,
+        storyteller_frontend=storyteller_frontend,
+        current_user_id=current_user_id,
     )
+
+
+_STORYTELLER_FRONTEND = {"endpoint": "/storyteller", "site_key": "site-key-1"}
 
 
 _SENTRY_FRONTEND = {
@@ -74,8 +83,11 @@ def test_head_scripts_carry_defer_so_first_paint_is_not_render_blocked() -> None
 
     See https://developer.chrome.com/docs/performance/insights/render-blocking.
     """
-    for label, frontend in (("no observability", None), ("sentry", _SENTRY_FRONTEND)):
-        html = _render(frontend)
+    for label, html in (
+        ("no observability", _render(None)),
+        ("sentry", _render(_SENTRY_FRONTEND)),
+        ("storyteller", _render(storyteller_frontend=_STORYTELLER_FRONTEND)),
+    ):
         tree = HTMLParser(html)
         head = tree.css_first("head")
         assert head is not None
@@ -91,6 +103,53 @@ def test_head_scripts_carry_defer_so_first_paint_is_not_render_blocked() -> None
             f"[{label}] head scripts missing defer/async (each adds "
             f"render-blocking latency to every page): {offenders}"
         )
+
+
+def _storyteller_scripts(html: str) -> tuple[list[str], str]:
+    """(external storyteller script srcs, inline init source) from <head>."""
+    head = HTMLParser(html).css_first("head")
+    assert head is not None
+    srcs = [
+        n.attributes.get("src", "")
+        for n in head.css("script")
+        if "storyteller" in (n.attributes.get("src") or "")
+    ]
+    inline = "\n".join(
+        n.text() for n in head.css("script") if "storyteller." in (n.text() or "")
+    )
+    return srcs, inline
+
+
+def test_storyteller_snippet_absent_without_a_site_key() -> None:
+    """`storyteller_frontend=None` (no `STORYTELLER_SITE_KEY`) → no script
+    tag and no init — the page must not even load the 80 KB snippet."""
+    srcs, inline = _storyteller_scripts(_render())
+    assert srcs == [] and inline == ""
+
+
+def test_storyteller_snippet_inits_with_endpoint_and_site_key() -> None:
+    """With a site key the snippet loads from our static mount and the
+    DOMContentLoaded init passes the configured endpoint + site key, then
+    calls `start()` (which itself defers to the service's kill switch)."""
+    srcs, inline = _storyteller_scripts(
+        _render(storyteller_frontend=_STORYTELLER_FRONTEND)
+    )
+    assert srcs == ["/static/fw/js/storyteller.js"]
+    assert 'endpoint: "/storyteller"' in inline
+    assert 'siteKey: "site-key-1"' in inline
+    assert "storyteller.start()" in inline
+    assert "storyteller.identify(" not in inline, "anonymous: no identify"
+
+
+def test_storyteller_snippet_identifies_the_signed_in_user() -> None:
+    """Signed-in viewers are `identify()`d by id so stories can say which
+    member a visit belongs to."""
+    _, inline = _storyteller_scripts(
+        _render(storyteller_frontend=_STORYTELLER_FRONTEND, current_user_id="u-42")
+    )
+    assert 'storyteller.identify("u-42")' in inline
+    # Order matters: init → identify → start.
+    assert inline.index("init(") < inline.index("identify(") < inline.index("start(")
 
 
 def test_meta_description_present_with_default_copy() -> None:

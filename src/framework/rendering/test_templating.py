@@ -69,6 +69,22 @@ def test_observability_frontend_none_when_disabled():
     assert context["observability_frontend"] is None
 
 
+def test_storyteller_frontend_follows_the_site_key():
+    """`storyteller_frontend` is `None` without a site key (no snippet) and
+    `{endpoint, site_key}` with one — the dict `base.html` inits from."""
+    with patch("src.framework.rendering.templating.settings") as mock_settings:
+        mock_settings.ENVIRONMENT = "production"
+        mock_settings.STORYTELLER_SITE_KEY = ""
+        mock_settings.STORYTELLER_ENDPOINT = "/storyteller"
+        assert get_template_context()["storyteller_frontend"] is None
+
+        mock_settings.STORYTELLER_SITE_KEY = "k"
+        assert get_template_context()["storyteller_frontend"] == {
+            "endpoint": "/storyteller",
+            "site_key": "k",
+        }
+
+
 # --- days_ago ------------------------------------------------------------
 
 
