@@ -426,6 +426,18 @@ def test_titleignore_file_skips_whole_file(tmp_path):
     assert _check(file) == []
 
 
+def test_vendor_directory_is_skipped_entirely(tmp_path):
+    """Vendored upstream trees (`vendor/<lib>/`) keep upstream's prose
+    style; the directory walk must not descend into them."""
+    vendored = tmp_path / "vendor" / "lib"
+    vendored.mkdir(parents=True)
+    (vendored / "README.md").write_text("# Installing Lib On Your App\n")
+    ours = _write_md(tmp_path, "# Installing Lib On Your App")
+    checker = TitleCaseChecker(fix_mode=False, respect_gitignore=False)
+    violations = checker.check_directory(tmp_path)
+    assert {Path(v["file"]).resolve() for v in violations} == {ours.resolve()}
+
+
 def test_fix_mode_replaces_text_in_html(tmp_path):
     file = _write_html(tmp_path, "<html><body><h1>Bad Heading</h1></body></html>")
     checker = TitleCaseChecker(fix_mode=True, respect_gitignore=False)

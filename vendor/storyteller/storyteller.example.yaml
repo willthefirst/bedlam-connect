@@ -1,0 +1,39 @@
+# Storyteller service configuration. Copy to storyteller.yaml and edit.
+# Any key can be overridden with env: ST_<SECTION>__<KEY>, e.g. ST_LLM__MODEL=gpt-4o
+
+site:
+  key: change-me                # the snippet sends this; events without it are rejected
+  allowed_origins: ["*"]        # CORS for the snippet; tighten to your site's origin
+  brief_file: brief.md          # what your site is, what matters, known trouble spots
+
+recording:
+  default_enabled: false        # nothing is recorded until you POST {"enabled": true} to /storyteller/recording
+  idle_timeout_minutes: 10      # a visit ends after this much silence (snippet uses the same value)
+
+llm:
+  provider: openai_compatible   # openai_compatible | anthropic | custom
+  base_url: https://api.openai.com/v1
+  api_key_env: LLM_API_KEY      # name of the env var holding the key
+  model: gpt-4o-mini
+  # custom_module: "mypkg.brains:MyBrain"   # for provider: custom
+
+consumer:                       # YOUR app: where stories go and where visitor memory is read from
+  base_url: http://localhost:8000
+  routes:
+    write_story: /internal/storyteller/stories          # POST
+    read_visitor: /internal/storyteller/visitors/{id}   # GET
+  secret_env: STORYTELLER_SECRET
+  timeout_seconds: 5
+
+service:
+  prefix: /storyteller
+  admin_token_env: STORYTELLER_ADMIN_TOKEN
+  buffer_dir: ./data
+  finalize_every_seconds: 30
+
+timeline:
+  signals:                      # thresholds for computed signals (seconds)
+    pause_s: 8
+    hover_dwell_s: 3
+    field_stall_s: 6
+    rage_clicks: 3

@@ -914,6 +914,9 @@ class TitleCaseChecker:
                 "build",
                 "dist",
                 ".coverage",
+                # Vendored upstream trees keep upstream's prose style —
+                # see vendor/README.md.
+                "vendor",
             }
             if dir_path.name in skip_dirs:
                 return True

@@ -1,0 +1,334 @@
+{
+  "$defs": {
+    "Friction": {
+      "properties": {
+        "at": {
+          "description": "seconds into the visit where the evidence starts",
+          "title": "At",
+          "type": "number"
+        },
+        "evidence": {
+          "description": "what was observed, citing timeline lines",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "inference": {
+          "description": "what it probably means for the person",
+          "title": "Inference",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "screenshot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Screenshot"
+        }
+      },
+      "required": [
+        "at",
+        "evidence",
+        "inference",
+        "confidence"
+      ],
+      "title": "Friction",
+      "type": "object"
+    },
+    "Outcome": {
+      "properties": {
+        "label": {
+          "description": "short slug, e.g. completed_signup, abandoned_signup, browsed, bounced, generation_failed",
+          "title": "Label",
+          "type": "string"
+        },
+        "observed": {
+          "description": "what the timeline shows about how the visit ended, no interpretation",
+          "title": "Observed",
+          "type": "string"
+        },
+        "inferred": {
+          "default": "",
+          "description": "your best reading of why, if any",
+          "title": "Inferred",
+          "type": "string"
+        },
+        "confidence": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "observed"
+      ],
+      "title": "Outcome",
+      "type": "object"
+    },
+    "Provenance": {
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "prompt_version": {
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "generated_at": {
+          "title": "Generated At",
+          "type": "string"
+        },
+        "input_tokens": {
+          "default": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "default": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "screenshots_used": {
+          "default": 0,
+          "title": "Screenshots Used",
+          "type": "integer"
+        },
+        "attempts": {
+          "default": 1,
+          "title": "Attempts",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "model",
+        "prompt_version",
+        "generated_at"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Suggestion": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "confidence": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Suggestion",
+      "type": "object"
+    },
+    "TrajectoryEntry": {
+      "properties": {
+        "visit_id": {
+          "title": "Visit Id",
+          "type": "string"
+        },
+        "started_at": {
+          "title": "Started At",
+          "type": "string"
+        },
+        "outcome": {
+          "title": "Outcome",
+          "type": "string"
+        },
+        "friction": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Friction",
+          "type": "array"
+        }
+      },
+      "required": [
+        "visit_id",
+        "started_at",
+        "outcome"
+      ],
+      "title": "TrajectoryEntry",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "narrative": {
+      "description": "3-8 sentences, written like notes from a friend who watched over the person's shoulder",
+      "title": "Narrative",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/Outcome"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "friction": {
+      "items": {
+        "$ref": "#/$defs/Friction"
+      },
+      "title": "Friction",
+      "type": "array"
+    },
+    "observations": {
+      "description": "notable things that happened, stated plainly",
+      "items": {
+        "type": "string"
+      },
+      "title": "Observations",
+      "type": "array"
+    },
+    "visitor_summary": {
+      "description": "1-2 sentences on what we now think is going on with this person across visits",
+      "title": "Visitor Summary",
+      "type": "string"
+    },
+    "suggestions": {
+      "items": {
+        "$ref": "#/$defs/Suggestion"
+      },
+      "title": "Suggestions",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "visit_id": {
+      "title": "Visit Id",
+      "type": "string"
+    },
+    "visitor_id": {
+      "title": "Visitor Id",
+      "type": "string"
+    },
+    "user_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "User Id"
+    },
+    "started_at": {
+      "title": "Started At",
+      "type": "string"
+    },
+    "ended_at": {
+      "title": "Ended At",
+      "type": "string"
+    },
+    "duration_s": {
+      "title": "Duration S",
+      "type": "number"
+    },
+    "entry_url": {
+      "title": "Entry Url",
+      "type": "string"
+    },
+    "referrer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Referrer"
+    },
+    "pages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Pages",
+      "type": "array"
+    },
+    "device": {
+      "additionalProperties": true,
+      "title": "Device",
+      "type": "object"
+    },
+    "consent": {
+      "additionalProperties": true,
+      "title": "Consent",
+      "type": "object"
+    },
+    "history_available": {
+      "default": false,
+      "title": "History Available",
+      "type": "boolean"
+    },
+    "timeline": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Timeline",
+      "type": "array"
+    },
+    "timeline_text": {
+      "title": "Timeline Text",
+      "type": "string"
+    },
+    "trajectory": {
+      "items": {
+        "$ref": "#/$defs/TrajectoryEntry"
+      },
+      "title": "Trajectory",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    }
+  },
+  "required": [
+    "narrative",
+    "outcome",
+    "visitor_summary",
+    "visit_id",
+    "visitor_id",
+    "started_at",
+    "ended_at",
+    "duration_s",
+    "entry_url",
+    "pages",
+    "device",
+    "timeline",
+    "timeline_text",
+    "provenance"
+  ],
+  "title": "Story",
+  "type": "object"
+}

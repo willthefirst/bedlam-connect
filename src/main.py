@@ -19,6 +19,7 @@ from src.domain.logic.users.view import onboarding_readiness
 from src.domain.routes import (
     access,
     admin,
+    storyteller,
     user_email,
     verifications,
 )
@@ -225,6 +226,7 @@ app.include_router(verifications.verifications_api_router)
 app.include_router(access.access_router)
 app.include_router(user_email.user_email_router)
 app.include_router(admin.admin_router)
+app.include_router(storyteller.storyteller_router)
 
 # Every entity route file calls `register_entity(SPEC)` at import time
 # (see `src/framework/dispatch/registry.py`). The package import above

@@ -1,0 +1,36 @@
+# Storyteller service next to a demo consumer and a fake LLM, for trying it out with zero keys.
+# For your real app: keep only `storyteller`, point consumer.base_url at your app, set a real llm.
+services:
+  storyteller:
+    build: .
+    ports: ["8787:8787"]
+    volumes:
+      - ./config:/config:ro
+      - storyteller-data:/data
+    environment:
+      STORYTELLER_SECRET: ${STORYTELLER_SECRET:-dev-secret-change-me}
+      STORYTELLER_ADMIN_TOKEN: ${STORYTELLER_ADMIN_TOKEN:-dev-admin-change-me}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      ST_SERVICE__BUFFER_DIR: /data
+    depends_on: [demo-consumer]
+
+  demo-consumer:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: examples/Dockerfile.demo
+    command: uvicorn examples.demo_consumer:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    environment:
+      STORYTELLER_SECRET: ${STORYTELLER_SECRET:-dev-secret-change-me}
+
+  fake-llm:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: examples/Dockerfile.demo
+    command: uvicorn examples.fake_llm:app --host 0.0.0.0 --port 8010
+    ports: ["8010:8010"]
+
+volumes:
+  storyteller-data:

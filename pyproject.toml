@@ -106,13 +106,14 @@ target-version = ['py311']
 extend-exclude = '''
 /(
     \.claude
+  | vendor
 )/
 '''
 
 [tool.isort]
 profile = "black"
 line_length = 88
-extend_skip = [".claude"]
+extend_skip = [".claude", "vendor"]
 
 [tool.djlint]
 profile = "jinja"
